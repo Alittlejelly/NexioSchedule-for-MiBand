@@ -1,0 +1,38 @@
+{
+    "version": "1.0.0",
+    "name": "Vela 快应用自动开发工作流",
+    "stages": {
+        "S1": {
+            "name": "PRD 生成",
+            "skill": "prd/generate",
+            "output_template": "01-prd.md",
+            "next_stage": "S2",
+            "prerequisites": [],
+            "inputs": ["figma_export", "requirement_description"]
+        },
+        "S2": {
+            "name": "技术方案",
+            "skill": "tech/design",
+            "output_template": "02-tech-design.md",
+            "next_stage": "S3",
+            "prerequisites": ["S1"],
+            "inputs": ["01-prd.md"]
+        },
+        "S3": {
+            "name": "功能研发",
+            "skill": "coding/implement",
+            "output_template": "03-code/",
+            "next_stage": null,
+            "prerequisites": ["S2"],
+            "inputs": ["01-prd.md", "02-tech-design.md", "figma_export"]
+        }
+    },
+    "commands": {
+        "y": "确认通过",
+        "e": "编辑修改",
+        "n": "放弃重新生成",
+        "q": "退出保存进度",
+        "status": "查看进度",
+        "back": "返回上一阶段"
+    }
+}

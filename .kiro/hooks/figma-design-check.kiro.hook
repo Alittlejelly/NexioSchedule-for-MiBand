@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Figma Design Comparison Check",
+  "description": "After writing .ux page files, automatically compare the generated code against the Figma design to verify: layout structure matches, colors/fonts/sizes are correct, image assets are properly exported and referenced, and no SVG files are used (Vela doesn't support SVG).",
+  "version": "1",
+  "when": {
+    "type": "postToolUse",
+    "toolTypes": ["write"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "If a .ux file was just written/modified AND there is a Figma design context available in this conversation, perform a design fidelity check:\n\n1. **Layout Match**: Compare the generated layout structure (flex-direction, alignment, spacing) against the Figma node structure. Check that container hierarchy matches.\n\n2. **Dimensions Check**: Verify key element dimensions (width, height, border-radius, padding, margin) match the Figma design values. All list items and cards should use FIXED width/height from the design, not percentage-based.\n\n3. **Color & Typography**: Confirm colors (#hex values), font-size, font-weight match the design tokens extracted from Figma.\n\n4. **Image Assets**: Check that:\n   - All image references in the .ux file point to existing files in src/common/\n   - NO SVG files are referenced (Vela doesn't support SVG, use PNG only)\n   - Image files are valid PNG format and reasonable size (<200KB for icons)\n   - Icons from Figma have been exported and downloaded as PNG\n\n5. **Scroll Container**: If the page content exceeds one screen, verify:\n   - Root element is <scroll scroll-y=\"true\">\n   - Inner container has explicit width: 100% and a fixed height value large enough for content\n\n6. **Safe Area**: For watch screens, verify padding accounts for circular screen safe area (top/bottom ~50px, left/right ~24-36px).\n\nReport any mismatches found. If no Figma context is available or the file is not a .ux file, skip this check silently."
+  }
+}

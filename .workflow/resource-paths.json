@@ -1,0 +1,61 @@
+{
+    "version": "2.0.0",
+    "paths": {
+        "agents_root": "agents",
+        "knowledge_root": "knowledge",
+        "skill_file": ".kiro/skills/vela-js-app/SKILL.md"
+    },
+    "knowledge_mode": "skill-first",
+    "skill_mappings": {
+        "prd/generate": {
+            "path": "agents/prd_agent.prompt.md",
+            "description": "S1: PRD 生成"
+        },
+        "tech/design": {
+            "path": "agents/tech_design_agent.prompt.md",
+            "description": "S2: 技术方案"
+        },
+        "coding/implement": {
+            "path": "agents/coding_agent.prompt.md",
+            "description": "S3: 功能研发"
+        }
+    },
+    "knowledge_mappings": {
+        "vela/dev-paradigm": {
+            "path": "knowledge/dev-paradigm",
+            "index_file": "INDEX.md",
+            "key_files": ["README.md", "quickapp-lifecycle.md", "page-routing.md", "manifest-config.md", "project-structure.md", "app-entry.md", "page-file-spec.md"],
+            "description": "Vela 快应用开发范式（生命周期、页面路由、manifest 配置、项目结构、脚本/样式规范）"
+        },
+        "vela/api-reference": {
+            "path": "knowledge/api-reference",
+            "index_file": "INDEX.md",
+            "key_files": ["README.md", "router-api.md", "app-api.md", "device-api.md", "storage-api.md", "fetch-api.md", "interconnect-api.md"],
+            "description": "Vela 快应用 API 接口（router、app、device、storage、fetch、audio、sensor 等 24 个系统 API）"
+        },
+        "vela/components": {
+            "path": "knowledge/components",
+            "index_file": "INDEX.md",
+            "key_files": ["README.md", "div.md", "list.md", "text.md", "image.md", "input.md", "scroll.md"],
+            "description": "Vela 快应用组件规范（容器组件 6 个、基础组件 10 个、表单组件 4 个、通用参考 4 个）"
+        },
+        "vela/examples": {
+            "path": "knowledge/examples",
+            "index_file": "INDEX.md",
+            "key_files": ["README.md", "todo-app.md", "album-app.md", "calculator-app.md"],
+            "description": "Vela 快应用代码示例（chart、todolist、player、settings、输入法等项目模板）"
+        },
+        "vela/best-practices": {
+            "path": "knowledge/best-practices",
+            "index_file": "INDEX.md",
+            "key_files": ["README.md", "start.md", "memory.md", "business.md"],
+            "description": "Vela 快应用最佳实践（启动优化、内存管理、业务实践）"
+        }
+    },
+    "stage_knowledge": {
+        "S1": ["skill"],
+        "S2": ["skill"],
+        "S3": ["skill", "vela/examples"]
+    },
+    "skill_knowledge_note": "所有阶段优先使用 SKILL.md 作为基础知识。当需要某个组件/API 的完整属性列表时，Agent 应使用 webFetch 访问 SKILL.md 中标注的官网链接按需获取详细文档。vela/examples 仅在 S3 阶段加载，提供完整项目模板参考。"
+}

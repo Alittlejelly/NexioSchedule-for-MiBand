@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Validate UX Files on Save",
+  "description": "When a .ux file is saved, automatically check for common syntax issues like unclosed tags, missing imports, and invalid component references.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.ux"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Check the saved .ux file for common Vela quick app issues: 1) Unclosed template tags 2) Missing @system imports that are used in the script 3) list-item components missing the required 'type' attribute 4) Image src paths referencing non-existent files. Report any issues found concisely."
+  }
+}

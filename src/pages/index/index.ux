@@ -1,0 +1,536 @@
+<template>
+  <div class="page">
+    <stack class="page-stack">
+    <div class="body-layer">
+    <scroll class="body" scroll-y="true" bounces="true" if="{{isHome}}">
+    <div class="screen">
+      <text class="weekday">{{weekday}}</text>
+      <text class="date-text">{{dateText}}</text>
+
+      <div class="card" if="{{hasNext}}">
+        <div class="row">
+          <div class="row-left">
+            <text class="blue">下节课</text>
+            <text class="strong-next">{{nextName}}</text>
+          </div>
+          <text class="blue">{{nextCountdown}}</text>
+        </div>
+        <text class="meta">{{nextMeta}}</text>
+      </div>
+
+      <block for="{{(groupIndex, group) in groups}}">
+        <div class="tag-wrap">
+          <text class="tag">{{group.label}}</text>
+        </div>
+        <div class="card" for="{{(courseIndex, course) in group.courses}}">
+          <div class="row">
+            <text class="strong">{{course.name}}</text>
+            <text class="blue">{{course.timeText}}</text>
+          </div>
+          <div class="row">
+            <text class="meta">{{course.meta}}</text>
+            <text class="meta">{{course.status}}</text>
+          </div>
+        </div>
+      </block>
+
+      <div class="empty-wrap" if="{{showEmpty}}">
+        <div class="empty-pill">
+          <text class="empty-title">{{emptyTitle}}</text>
+          <text class="empty-sub" if="{{showNeedPhone}}">{{emptySub}}</text>
+        </div>
+      </div>
+    </div>
+    </scroll>
+
+    <scroll class="body" scroll-y="true" bounces="true" else>
+    <div class="screen screen-about">
+      <text class="page-title">应用信息</text>
+
+      <div class="card">
+        <div class="row-app">
+          <image class="app-icon" src="/common/about_icon.png"></image>
+          <div class="app-text">
+            <text class="app-name">nexio课程表</text>
+            <text class="app-ver">版本: v1.0.0</text>
+          </div>
+        </div>
+      </div>
+
+      <text class="section-label">开发人员名单</text>
+
+      <div class="card people-card">
+        <div class="person">
+          <image class="avatar" src="/common/photo1.png"></image>
+          <div class="person-text">
+            <text class="person-name">一個小果冻</text>
+            <text class="person-role">快应用开发设计</text>
+          </div>
+        </div>
+        <div class="person">
+          <image class="avatar" src="/common/photo2.png"></image>
+          <div class="person-text">
+            <text class="person-name">Sunlight</text>
+            <text class="person-role">nexio开发者</text>
+          </div>
+        </div>
+      </div>
+    </div>
+    </scroll>
+    </div>
+    </stack>
+
+    <div class="tab-bar">
+      <div class="tab-btn" onclick="onTabHome">
+        <div class="tab-slot">
+          <div class="tab-hl" show="{{isHome}}">
+            <image class="tab-icon" src="/common/tab_home.png"></image>
+          </div>
+          <div class="tab-hl-off" show="{{isAbout}}">
+            <image class="tab-icon" src="/common/tab_home.png"></image>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-btn" onclick="onTabAbout">
+        <div class="tab-slot">
+          <div class="tab-hl" show="{{isAbout}}">
+            <image class="tab-icon" src="/common/tab_about.png"></image>
+          </div>
+          <div class="tab-hl-off" show="{{isHome}}">
+            <image class="tab-icon" src="/common/tab_about.png"></image>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import sync from '../../common/sync'
+import schedule from '../../common/schedule'
+import util from '../../common/util'
+
+export default {
+  private: {
+    isHome: true,
+    isAbout: false,
+    weekday: '今天是周日',
+    dateText: '',
+    hasNext: false,
+    nextName: '',
+    nextCountdown: '',
+    nextMeta: '',
+    groups: [],
+    showEmpty: false,
+    showNeedPhone: false,
+    emptyTitle: '今日无课',
+    emptySub: '打开Nexio课程表发送数据'
+  },
+  onInit() {
+    this.unsubscribe = sync.onScheduleChange(() => {
+      this.refreshHome()
+    })
+    sync.init()
+    this.refreshHome()
+    this._refreshTimer = setInterval(() => {
+      this.refreshHome()
+    }, 60000)
+  },
+  onShow() {
+    this.refreshHome()
+  },
+  onDestroy() {
+    if (this._refreshTimer) {
+      clearInterval(this._refreshTimer)
+      this._refreshTimer = null
+    }
+    if (this.unsubscribe) {
+      this.unsubscribe()
+      this.unsubscribe = null
+    }
+  },
+  refreshHome() {
+    const vm = schedule.buildHomeViewModel(new Date(), util)
+    this.weekday = '今天是' + vm.weekday
+    this.dateText = vm.dateText
+    this.hasNext = vm.hasNext
+    if (vm.nextCourse) {
+      this.nextName = vm.nextCourse.name
+      this.nextCountdown = vm.nextCourse.countdown
+      this.nextMeta = vm.nextCourse.meta
+    } else {
+      this.nextName = ''
+      this.nextCountdown = ''
+      this.nextMeta = ''
+    }
+    this.groups = vm.groups
+    this.showEmpty = !vm.hasCourses
+    this.showNeedPhone = vm.emptyState === 'need-phone'
+    if (vm.emptyState === 'need-phone') {
+      this.emptyTitle = '请连接手机'
+      this.emptySub = '打开Nexio课程表发送数据'
+    } else if (vm.emptyState === 'no-class') {
+      this.emptyTitle = '今日无课'
+      this.emptySub = ''
+    }
+  },
+  onTabHome() {
+    this.isHome = true
+    this.isAbout = false
+    this.refreshHome()
+  },
+  onTabAbout() {
+    this.isHome = false
+    this.isAbout = true
+  }
+}
+</script>
+
+<style>
+  .page {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    background-color: #000000;
+  }
+
+  .page-stack {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 固定两层：内容层在下、tab-bar 在上，避免 if/else 重建后层级颠倒 */
+  .body-layer {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+  }
+
+  .body {
+    width: 100%;
+    height: 100%;
+    flex-shrink: 0;
+    flex-direction: column;
+  }
+
+  .screen {
+    width: 100%;
+    flex-direction: column;
+    padding-top: 28px;
+    padding-right: 18px;
+    padding-bottom: 100px;
+    padding-left: 18px;
+    /* 保证可滚动/回弹：内容不足一屏时也有滚动高度 */
+    min-height: 520px;
+  }
+
+  /* 仅增加可滚高度以触发回弹，不改变关于页内部布局 */
+  .screen-about {
+    min-height: 620px;
+  }
+
+  /* 标题区约 114px，height=240 使文案中心落在屏幕垂直中线附近 */
+  .empty-wrap {
+    width: 100%;
+    height: 240px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .empty-pill {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #2c2c2e;
+    border-radius: 18px;
+    padding-top: 14px;
+    padding-right: 28px;
+    padding-bottom: 14px;
+    padding-left: 28px;
+  }
+
+  .empty-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #d1d1d6;
+    text-align: center;
+  }
+
+  .empty-sub {
+    font-size: 14px;
+    font-weight: bold;
+    color: #8e8e93;
+    text-align: center;
+    margin-top: 6px;
+  }
+
+  .weekday {
+    width: 100%;
+    font-size: 32px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+
+  .date-text {
+    width: 100%;
+    font-size: 32px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 18px;
+  }
+
+  .page-title {
+    width: 100%;
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 16px;
+  }
+
+  .card {
+    width: 100%;
+    flex-direction: column;
+    padding-top: 15px;
+    padding-right: 16px;
+    padding-bottom: 15px;
+    padding-left: 16px;
+    background-color: #2c2c2e;
+    border-radius: 16px;
+    margin-bottom: 14px;
+  }
+
+  .row {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-top: 0;
+  }
+
+  /* 「下节课」+ 课名紧挨左侧，倒计时由 .row 的 space-between 顶到最右 */
+  .row-left {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    flex-shrink: 1;
+    overflow: hidden;
+  }
+
+  .row-app {
+    width: 100%;
+    flex-direction: row;
+  }
+
+  .app-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    margin-right: 12px;
+  }
+
+  .app-text {
+    flex-direction: column;
+  }
+
+  .app-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 4px;
+  }
+
+  .app-ver {
+    font-size: 13px;
+    font-weight: bold;
+    color: #8e8e93;
+  }
+
+  .section-label {
+    width: 100%;
+    font-size: 13px;
+    font-weight: bold;
+    color: #8e8e93;
+    margin-top: 6px;
+    margin-bottom: 8px;
+  }
+
+  .person {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+
+  /* 人员卡：行距作底部留白，避免双倍 */
+  .people-card {
+    padding-top: 15px;
+    padding-bottom: 0px;
+  }
+
+  /* 图已预裁圆形透明边，勿再用 border-radius 二次硬裁 */
+  .avatar {
+    width: 44px;
+    height: 44px;
+    background-color: transparent;
+    margin-right: 12px;
+  }
+
+  .person-text {
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .person-name {
+    width: 100%;
+    text-align: left;
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 4px;
+    margin-left: 5px;
+  }
+
+  .person-role {
+    width: 100%;
+    text-align: left;
+    font-size: 13px;
+    font-weight: bold;
+    color: #8e8e93;
+    margin-left: 5px;
+  }
+
+  .line1 {
+    width: 100%;
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-top: 2px;
+    margin-bottom: 8px;
+  }
+
+  /* 下节课课名 */
+  .strong-next {
+    font-size: 20px;
+    font-weight: bold;
+    width: 50%;
+    flex-shrink: 1;
+    margin-left: 2px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    color: #ffffff;
+  }
+
+  /* 列表课名 */
+  .strong {
+    font-size: 20px;
+    font-weight: bold;
+    width: 100%;
+    margin-left: 2px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    color: #ffffff;
+  }
+
+  .blue {
+    font-size: 20px;
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-bottom: 5px;
+    color: #3381FF;
+  }
+
+  .meta {
+    font-size: 17px;
+    font-weight: bold;
+    color: #8e8e93;
+  }
+
+  .tag-wrap {
+    width: 100%;
+    flex-direction: row;
+    margin-top: 4px;
+    margin-bottom: 8px;
+  }
+
+  .tag {
+    font-size: 15px;
+    font-weight: bold;
+    color: #d1d1d6;
+    background-color: #2c2c2e;
+    border-radius: 8px;
+    padding-top: 4px;
+    padding-right: 10px;
+    padding-bottom: 4px;
+    padding-left: 10px;
+  }
+
+  .tab-bar {
+    position: absolute;
+    left: 100px;
+    right: 100px;
+    bottom: 30px;
+    height: 55px;
+    flex-direction: row;
+    background-color: #2c2c2e;
+    border-radius: 35px;
+    align-items: center;
+    box-shadow: 0px 6px 18px rgba(0, 0, 0, 0.18);
+  }
+
+  .tab-btn {
+    width: 50%;
+    height: 55px;
+    flex-shrink: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* 固定插槽，避免选中态被压成圆点 */
+  .tab-slot {
+    width: 55px;
+    height: 45px;
+    margin-top: -2px;
+  }
+
+  /* 选中：比外框小一圈的嵌套胶囊 */
+  .tab-hl {
+    width: 55px;
+    height: 45px;
+    min-width: 55px;
+    min-height: 45px;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    border-radius: 35px;
+    background-color: #48484a;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* 未选中：同尺寸透明占位，避免图标跳动 */
+  .tab-hl-off {
+    width: 55px;
+    height: 45px;
+    min-width: 55px;
+    min-height: 45px;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    border-radius: 35px;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .tab-icon {
+    width: 33px;
+    height: 33px;
+    flex-shrink: 0;
+    align-self: center;
+    margin-top: -1px;
+  }
+</style>

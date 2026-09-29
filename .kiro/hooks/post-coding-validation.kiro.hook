@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Post-Coding Quality Validation",
+  "description": "After S3 coding task completes, automatically run a quality validation check on the generated code to verify manifest routes match page files, image references exist, and API imports match feature declarations.",
+  "version": "1",
+  "when": {
+    "type": "postTaskExecution"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run a quality validation on the generated code: 1) Check manifest.json router.pages entries match actual page files in src/pages/ 2) Check all image paths referenced in .ux files exist in src/common/images/ 3) Check all @system.xxx imports have corresponding entries in manifest.json features array. Report results as a checklist."
+  }
+}
