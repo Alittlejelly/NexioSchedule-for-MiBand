@@ -146,6 +146,12 @@ vite.config.ts.timestamp-*
 # Signing keys — NEVER commit
 sign/
 *.pem
+*.jks
+*.p12
+*.keystore
+keystore.properties
+**/keystore/
+__MACOSX/
 
 # Build outputs / packages
 build/
