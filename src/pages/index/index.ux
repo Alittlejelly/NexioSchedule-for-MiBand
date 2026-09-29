@@ -9,10 +9,8 @@
 
       <div class="card" if="{{hasNext}}">
         <div class="row">
-          <div class="row-left">
-            <text class="blue">下节课</text>
-            <text class="strong-next">{{nextName}}</text>
-          </div>
+          <text class="blue">下节课</text>
+          <text class="strong-next">{{nextName}}</text>
           <text class="blue">{{nextCountdown}}</text>
         </div>
         <text class="meta">{{nextMeta}}</text>
@@ -305,6 +303,7 @@ export default {
     width: 100%;
     flex-direction: row;
     justify-content: space-between;
+    align-items: center;
     margin-top: 0;
   }
 
@@ -314,7 +313,6 @@ export default {
     justify-content: flex-start;
     align-items: center;
     flex-shrink: 1;
-    overflow: hidden;
   }
 
   .row-app {
@@ -410,14 +408,15 @@ export default {
     margin-bottom: 8px;
   }
 
-  /* 下节课课名 */
+  /* 下节课课名：中间弹性区，长课名折行，不挤两侧文案 */
   .strong-next {
+    flex-grow: 1;
+    flex-shrink: 1;
+    lines: -1;
     font-size: 20px;
     font-weight: bold;
-    width: 50%;
-    flex-shrink: 1;
-    margin-left: 2px;
-    margin-right: 5px;
+    margin-left: 8px;
+    margin-right: 8px;
     margin-bottom: 5px;
     color: #ffffff;
   }
