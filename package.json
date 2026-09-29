@@ -1,6 +1,6 @@
 {
   "name": "band-schedule",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "小米手环课程表快应用",
   "scripts": {
     "build": "aiot build",

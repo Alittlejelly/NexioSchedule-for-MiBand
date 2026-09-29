@@ -19,10 +19,10 @@ const pemDir = path.join(toolkitRoot, 'lib', 'signature', 'pem')
 
 async function main() {
   const info = {
-    package: 'com.example.bandschedule',
-    name: '课程表',
-    versionName: '0.1.5',
-    versionCode: 6,
+    package: 'com.haooz.chedule',
+    name: 'nexio课程表',
+    versionName: '1.0.0',
+    versionCode: 17,
     icon: '/common/icon.png'
   }
 
