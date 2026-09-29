@@ -48,7 +48,7 @@ npm run release  # 发布构建
 
 | 版本 | versionCode | 说明 | 下载 |
 |------|-------------|------|------|
-| 1.0.0 | 17 | 首个手环端发行包 | [release/com.haooz.chedule.debug.1.0.0.rpk](./release/com.haooz.chedule.debug.1.0.0.rpk) |
+| 1.0.0 | 17 | 首个手环端正式签名发行包 | [release/com.haooz.chedule.release.1.0.0.rpk](./release/com.haooz.chedule.release.1.0.0.rpk) |
 
 当前版本见 `src/manifest.json`（versionName / versionCode）。
 
