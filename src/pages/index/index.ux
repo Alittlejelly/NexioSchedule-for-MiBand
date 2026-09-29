@@ -50,7 +50,7 @@
           <image class="app-icon" src="/common/about_icon.png"></image>
           <div class="app-text">
             <text class="app-name">nexio课程表</text>
-            <text class="app-ver">版本: v1.0.0</text>
+            <text class="app-ver">版本: v1.0.1</text>
           </div>
         </div>
       </div>
@@ -81,10 +81,10 @@
     <div class="tab-bar">
       <div class="tab-btn" onclick="onTabHome">
         <div class="tab-slot">
-          <div class="tab-hl" show="{{isHome}}">
+          <div class="tab-hl tab-in-l" show="{{isHome}}">
             <image class="tab-icon" src="/common/tab_home.png"></image>
           </div>
-          <div class="tab-hl-off" show="{{isAbout}}">
+          <div class="tab-hl-off tab-in-l" show="{{isAbout}}">
             <image class="tab-icon" src="/common/tab_home.png"></image>
           </div>
         </div>
@@ -92,10 +92,10 @@
 
       <div class="tab-btn" onclick="onTabAbout">
         <div class="tab-slot">
-          <div class="tab-hl" show="{{isAbout}}">
+          <div class="tab-hl tab-in-r" show="{{isAbout}}">
             <image class="tab-icon" src="/common/tab_about.png"></image>
           </div>
-          <div class="tab-hl-off" show="{{isHome}}">
+          <div class="tab-hl-off tab-in-r" show="{{isHome}}">
             <image class="tab-icon" src="/common/tab_about.png"></image>
           </div>
         </div>
@@ -216,9 +216,9 @@ export default {
     width: 100%;
     flex-direction: column;
     padding-top: 28px;
-    padding-right: 18px;
-    padding-bottom: 100px;
-    padding-left: 18px;
+    padding-right: 10px;
+    padding-bottom: 110px;
+    padding-left: 10px;
     /* 保证可滚动/回弹：内容不足一屏时也有滚动高度 */
     min-height: 520px;
   }
@@ -231,7 +231,7 @@ export default {
   /* 标题区约 114px，height=240 使文案中心落在屏幕垂直中线附近 */
   .empty-wrap {
     width: 100%;
-    height: 240px;
+    height: 220px;
     justify-content: center;
     align-items: center;
   }
@@ -243,13 +243,13 @@ export default {
     background-color: #2c2c2e;
     border-radius: 18px;
     padding-top: 14px;
-    padding-right: 28px;
+    padding-right: 24px;
     padding-bottom: 14px;
-    padding-left: 28px;
+    padding-left: 24px;
   }
 
   .empty-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
     color: #d1d1d6;
     text-align: center;
@@ -261,6 +261,7 @@ export default {
     color: #8e8e93;
     text-align: center;
     margin-top: 6px;
+    lines: -1;
   }
 
   .weekday {
@@ -276,27 +277,28 @@ export default {
     font-size: 32px;
     font-weight: bold;
     color: #ffffff;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
   }
 
   .page-title {
     width: 100%;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: bold;
     color: #ffffff;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
 
   .card {
     width: 100%;
     flex-direction: column;
-    padding-top: 15px;
-    padding-right: 16px;
-    padding-bottom: 15px;
-    padding-left: 16px;
+    padding-top: 14px;
+    padding-right: 12px;
+    padding-bottom: 14px;
+    padding-left: 12px;
     background-color: #2c2c2e;
     border-radius: 16px;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
+    overflow: visible;
   }
 
   .row {
@@ -305,6 +307,7 @@ export default {
     justify-content: space-between;
     align-items: center;
     margin-top: 0;
+    overflow: visible;
   }
 
   /* 「下节课」+ 课名紧挨左侧，倒计时由 .row 的 space-between 顶到最右 */
@@ -332,21 +335,21 @@ export default {
   }
 
   .app-name {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
     color: #ffffff;
     margin-bottom: 4px;
   }
 
   .app-ver {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
     color: #8e8e93;
   }
 
   .section-label {
     width: 100%;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
     color: #8e8e93;
     margin-top: 6px;
@@ -357,19 +360,19 @@ export default {
     width: 100%;
     flex-direction: row;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 14px;
   }
 
   /* 人员卡：行距作底部留白，避免双倍 */
   .people-card {
-    padding-top: 15px;
+    padding-top: 14px;
     padding-bottom: 0px;
   }
 
   /* 图已预裁圆形透明边，勿再用 border-radius 二次硬裁 */
   .avatar {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     background-color: transparent;
     margin-right: 12px;
   }
@@ -383,7 +386,7 @@ export default {
   .person-name {
     width: 100%;
     text-align: left;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
     color: #ffffff;
     margin-bottom: 4px;
@@ -393,7 +396,7 @@ export default {
   .person-role {
     width: 100%;
     text-align: left;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: bold;
     color: #8e8e93;
     margin-left: 5px;
@@ -401,29 +404,31 @@ export default {
 
   .line1 {
     width: 100%;
-    font-size: 20px;
+    font-size: 23px;
     font-weight: bold;
     color: #ffffff;
     margin-top: 2px;
-    margin-bottom: 8px;
+    margin-bottom: 9px;
   }
 
-  /* 下节课课名：中间弹性区，长课名折行，不挤两侧文案 */
+  /* 下节课课名：中间弹性区，长课名折行；min-width 防止被挤成竖排 */
   .strong-next {
     flex-grow: 1;
     flex-shrink: 1;
+    min-width: 96px;
     lines: -1;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: bold;
-    margin-left: 8px;
-    margin-right: 8px;
+    margin-left: 6px;
+    margin-right: 6px;
     margin-bottom: 5px;
     color: #ffffff;
+    overflow: visible;
   }
 
   /* 列表课名 */
   .strong {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: bold;
     width: 100%;
     margin-left: 2px;
@@ -433,7 +438,7 @@ export default {
   }
 
   .blue {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: bold;
     flex-shrink: 0;
     margin-bottom: 5px;
@@ -444,13 +449,14 @@ export default {
     font-size: 17px;
     font-weight: bold;
     color: #8e8e93;
+    lines: -1;
   }
 
   .tag-wrap {
     width: 100%;
     flex-direction: row;
-    margin-top: 4px;
-    margin-bottom: 8px;
+    margin-top: 5px;
+    margin-bottom: 9px;
   }
 
   .tag {
@@ -465,71 +471,85 @@ export default {
     padding-left: 10px;
   }
 
+  /* 悬浮 Tab：原样紧凑胶囊，宽高各 +10px 等比放大，不横向拉伸 */
   .tab-bar {
     position: absolute;
-    left: 100px;
-    right: 100px;
+    left: 95px;
+    right: 95px;
     bottom: 30px;
-    height: 55px;
+    height: 65px;
     flex-direction: row;
     background-color: #2c2c2e;
-    border-radius: 35px;
+    border-radius: 40px;
     align-items: center;
+    overflow: visible;
     box-shadow: 0px 6px 18px rgba(0, 0, 0, 0.18);
   }
 
   .tab-btn {
     width: 50%;
-    height: 55px;
+    height: 65px;
     flex-shrink: 0;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    overflow: visible;
   }
 
   /* 固定插槽，避免选中态被压成圆点 */
   .tab-slot {
-    width: 55px;
-    height: 45px;
-    margin-top: -2px;
+    width: 65px;
+    height: 55px;
+    margin-top: -1px;
+    overflow: visible;
   }
 
   /* 选中：比外框小一圈的嵌套胶囊 */
   .tab-hl {
-    width: 55px;
-    height: 45px;
-    min-width: 55px;
-    min-height: 45px;
+    width: 65px;
+    height: 55px;
+    min-width: 65px;
+    min-height: 55px;
     position: absolute;
     left: 0px;
     top: 0px;
-    border-radius: 35px;
+    border-radius: 40px;
     background-color: #48484a;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    overflow: visible;
   }
 
   /* 未选中：同尺寸透明占位，避免图标跳动 */
   .tab-hl-off {
-    width: 55px;
-    height: 45px;
-    min-width: 55px;
-    min-height: 45px;
+    width: 65px;
+    height: 55px;
+    min-width: 65px;
+    min-height: 55px;
     position: absolute;
     left: 0px;
     top: 0px;
-    border-radius: 35px;
+    border-radius: 40px;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    overflow: visible;
+  }
+
+  /* 选中框+图标向内收：覆盖 left，左往右、右往左 */
+  .tab-in-l {
+    left: 2px;
+  }
+
+  .tab-in-r {
+    left: -2px;
   }
 
   .tab-icon {
-    width: 33px;
-    height: 33px;
+    width: 43px;
+    height: 43px;
     flex-shrink: 0;
     align-self: center;
-    margin-top: -1px;
   }
 </style>

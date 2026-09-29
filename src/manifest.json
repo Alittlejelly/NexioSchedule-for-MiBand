@@ -2,8 +2,8 @@
   "package": "com.haooz.chedule",
   "name": "nexio课程表",
   "icon": "/common/icon.png",
-  "versionName": "1.0.0",
-  "versionCode": 17,
+  "versionName": "1.0.1",
+  "versionCode": 18,
   "minPlatformVersion": 1200,
   "simulationVersion": "default",
   "deviceTypeList": ["watch"],
@@ -16,7 +16,7 @@
   ],
   "config": {
     "logLevel": "log",
-    "designWidth": "device-width"
+    "designWidth": 336
   },
   "router": {
     "entry": "pages/index",
