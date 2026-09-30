@@ -20,6 +20,24 @@ function formatClock(date) {
   return pad2(date.getHours()) + ':' + pad2(date.getMinutes())
 }
 
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function addDays(date, n) {
+  const d = startOfDay(date)
+  d.setDate(d.getDate() + n)
+  return d
+}
+
 /**
  * 将 "HH:mm" 解析为当天的 Date
  */
@@ -63,10 +81,12 @@ function formatCountdown(target, now) {
 
 /**
  * 课程状态：未开始 / 进行中 / 已结束
+ * dayDate 为课程所在日期，now 为真实当前时刻（可跨日查看）
  */
-function getCourseStatus(course, now) {
-  const start = parseTimeToday(course.startTime, now)
-  const end = parseTimeToday(course.endTime, now)
+function getCourseStatus(course, now, dayDate) {
+  const base = dayDate || now
+  const start = parseTimeToday(course.startTime, base)
+  const end = parseTimeToday(course.endTime, base)
   if (now.getTime() < start.getTime()) {
     return {
       status: '未开始',
@@ -97,6 +117,9 @@ export default {
   getWeekday,
   formatDate,
   formatClock,
+  isSameDay,
+  startOfDay,
+  addDays,
   parseTimeToday,
   formatCountdown,
   getCourseStatus

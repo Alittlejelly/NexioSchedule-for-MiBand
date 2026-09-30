@@ -143,6 +143,13 @@ function getTodayCourses(date) {
 }
 
 /**
+ * 指定日期的课程（周课表按星期取）
+ */
+function getCoursesForDate(date) {
+  return getTodayCourses(date)
+}
+
+/**
  * 将课程按上午/下午/晚上分组，保持时间顺序
  */
 function groupBySection(courses) {
@@ -192,12 +199,15 @@ function getWeekdayName(date) {
 
 /**
  * 组装首页展示模型（与手机端今日页字段对齐）
+ * viewDate：要查看的日期；realNow：真实当前时刻（用于状态/倒计时）
  */
-function buildHomeViewModel(now, util) {
-  const date = now || new Date()
-  const courses = getTodayCourses(date)
+function buildHomeViewModel(viewDate, util, realNow) {
+  const date = viewDate || new Date()
+  const now = realNow || date
+  const isToday = util.isSameDay(date, now)
+  const courses = getCoursesForDate(date)
   const groups = groupBySection(courses)
-  const next = getNextCourse(courses, date)
+  const next = isToday ? getNextCourse(courses, now) : null
 
   const sectionViews = []
   for (let i = 0; i < groups.length; i++) {
@@ -205,7 +215,7 @@ function buildHomeViewModel(now, util) {
     const items = []
     for (let j = 0; j < g.courses.length; j++) {
       const c = g.courses[j]
-      const statusInfo = util.getCourseStatus(c, date)
+      const statusInfo = util.getCourseStatus(c, now, date)
       items.push({
         id: c.id,
         name: c.name,
@@ -228,7 +238,7 @@ function buildHomeViewModel(now, util) {
     const startParts = (next.startTime || '').split(':')
     const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
     startDate.setHours(parseInt(startParts[0], 10) || 0, parseInt(startParts[1], 10) || 0, 0, 0)
-    const cd = util.formatCountdown(startDate, date)
+    const cd = util.formatCountdown(startDate, now)
     nextView = {
       id: next.id,
       name: next.name,
@@ -245,6 +255,7 @@ function buildHomeViewModel(now, util) {
   }
 
   return {
+    isToday: isToday,
     weekday: getWeekdayName(date),
     dateText: util.formatDate(date),
     quote: quoteText,
@@ -273,6 +284,7 @@ export default {
   WEEKDAYS,
   SECTION_META,
   getTodayCourses,
+  getCoursesForDate,
   groupBySection,
   getNextCourse,
   setSchedule,

@@ -2,46 +2,56 @@
   <div class="page">
     <stack class="page-stack">
     <div class="body-layer">
-    <scroll class="body" scroll-y="true" bounces="true" if="{{isHome}}">
-    <div class="screen">
-      <text class="weekday">{{weekday}}</text>
-      <text class="date-text">{{dateText}}</text>
+    <stack class="day-stage" if="{{isHome}}">
+      <div class="day-layer {{layer.layerClass}}" for="{{(layerIndex, layer) in dayLayers}}">
+        <scroll class="body" scroll-y="true" bounces="true">
+          <div class="screen" onswipe="onSwipe" ontouchstart="onTouchStart">
+            <div class="header-row">
+              <text class="weekday">{{layer.weekday}}</text>
+              <text class="clock" if="{{layer.isToday}}">{{layer.clockText}}</text>
+              <div class="today-btn" else onclick="onBackToday">
+                <text class="today-btn-text">今</text>
+              </div>
+            </div>
+            <text class="date-text">{{layer.dateText}}</text>
 
-      <div class="card" if="{{hasNext}}">
-        <div class="row">
-          <text class="blue">下节课</text>
-          <text class="strong-next">{{nextName}}</text>
-          <text class="blue">{{nextCountdown}}</text>
-        </div>
-        <text class="meta">{{nextMeta}}</text>
-      </div>
+            <div class="card" if="{{layer.hasNext}}">
+              <div class="row">
+                <text class="blue">下节课</text>
+                <text class="strong-next">{{layer.nextName}}</text>
+                <text class="blue">{{layer.nextCountdown}}</text>
+              </div>
+              <text class="meta">{{layer.nextMeta}}</text>
+            </div>
 
-      <block for="{{(groupIndex, group) in groups}}">
-        <div class="tag-wrap">
-          <text class="tag">{{group.label}}</text>
-        </div>
-        <div class="card" for="{{(courseIndex, course) in group.courses}}">
-          <div class="row">
-            <text class="strong">{{course.name}}</text>
-            <text class="blue">{{course.timeText}}</text>
+            <block for="{{(groupIndex, group) in layer.groups}}">
+              <div class="tag-wrap">
+                <text class="tag">{{group.label}}</text>
+              </div>
+              <div class="card" for="{{(courseIndex, course) in group.courses}}">
+                <div class="row">
+                  <text class="strong">{{course.name}}</text>
+                  <text class="blue">{{course.timeText}}</text>
+                </div>
+                <div class="row">
+                  <text class="meta">{{course.meta}}</text>
+                  <text class="meta">{{course.status}}</text>
+                </div>
+              </div>
+            </block>
+
+            <div class="empty-wrap" if="{{layer.showEmpty}}">
+              <div class="empty-pill">
+                <text class="empty-title">{{layer.emptyTitle}}</text>
+                <text class="empty-sub" if="{{layer.showNeedPhone}}">{{layer.emptySub}}</text>
+              </div>
+            </div>
           </div>
-          <div class="row">
-            <text class="meta">{{course.meta}}</text>
-            <text class="meta">{{course.status}}</text>
-          </div>
-        </div>
-      </block>
-
-      <div class="empty-wrap" if="{{showEmpty}}">
-        <div class="empty-pill">
-          <text class="empty-title">{{emptyTitle}}</text>
-          <text class="empty-sub" if="{{showNeedPhone}}">{{emptySub}}</text>
-        </div>
+        </scroll>
       </div>
-    </div>
-    </scroll>
+    </stack>
 
-    <scroll class="body" scroll-y="true" bounces="true" else>
+    <scroll class="body" scroll-y="true" bounces="true" if="{{isAbout}}">
     <div class="screen screen-about">
       <text class="page-title">应用信息</text>
 
@@ -50,7 +60,7 @@
           <image class="app-icon" src="/common/about_icon.png"></image>
           <div class="app-text">
             <text class="app-name">nexio课程表</text>
-            <text class="app-ver">版本: v1.0.1</text>
+            <text class="app-ver">版本: v1.1.0</text>
           </div>
         </div>
       </div>
@@ -75,6 +85,8 @@
       </div>
     </div>
     </scroll>
+
+    <div class="sys-back-edge" if="{{isHome}}"></div>
     </div>
     </stack>
 
@@ -109,21 +121,17 @@ import sync from '../../common/sync'
 import schedule from '../../common/schedule'
 import util from '../../common/util'
 
+/** 出入场动画时长（ms），与 CSS animation-duration 一致 */
+const SLIDE_MS = 280
+/** 左缘留给系统「右滑回桌面」的宽度，与 .sys-back-edge 保持一致 */
+const EDGE_W = 12
+
 export default {
   private: {
     isHome: true,
     isAbout: false,
-    weekday: '今天是周日',
-    dateText: '',
-    hasNext: false,
-    nextName: '',
-    nextCountdown: '',
-    nextMeta: '',
-    groups: [],
-    showEmpty: false,
-    showNeedPhone: false,
-    emptyTitle: '今日无课',
-    emptySub: '打开Nexio课程表发送数据'
+    dayLayers: [],
+    viewDateTs: 0
   },
   onInit() {
     this.unsubscribe = sync.onScheduleChange(() => {
@@ -139,38 +147,135 @@ export default {
     this.refreshHome()
   },
   onDestroy() {
+    this._pendingDelta = 0
     if (this._refreshTimer) {
       clearInterval(this._refreshTimer)
       this._refreshTimer = null
+    }
+    if (this._slideTimer) {
+      clearTimeout(this._slideTimer)
+      this._slideTimer = null
     }
     if (this.unsubscribe) {
       this.unsubscribe()
       this.unsubscribe = null
     }
   },
-  refreshHome() {
-    const vm = schedule.buildHomeViewModel(new Date(), util)
-    this.weekday = '今天是' + vm.weekday
-    this.dateText = vm.dateText
-    this.hasNext = vm.hasNext
-    if (vm.nextCourse) {
-      this.nextName = vm.nextCourse.name
-      this.nextCountdown = vm.nextCourse.countdown
-      this.nextMeta = vm.nextCourse.meta
-    } else {
-      this.nextName = ''
-      this.nextCountdown = ''
-      this.nextMeta = ''
+  getViewDate() {
+    return this.viewDateTs ? new Date(this.viewDateTs) : new Date()
+  },
+  buildLayer(vm, now, layerClass) {
+    return {
+      layerClass: layerClass,
+      isToday: vm.isToday,
+      weekday: vm.isToday ? '今天是' + vm.weekday : vm.weekday,
+      dateText: vm.dateText,
+      clockText: util.formatClock(now),
+      hasNext: vm.hasNext,
+      nextName: vm.nextCourse ? vm.nextCourse.name : '',
+      nextCountdown: vm.nextCourse ? vm.nextCourse.countdown : '',
+      nextMeta: vm.nextCourse ? vm.nextCourse.meta : '',
+      groups: vm.groups,
+      showEmpty: !vm.hasCourses,
+      showNeedPhone: vm.emptyState === 'need-phone',
+      emptyTitle: vm.emptyState === 'need-phone' ? '请连接手机' : (vm.isToday ? '今日无课' : '当天无课'),
+      emptySub: '打开Nexio课程表发送数据'
     }
-    this.groups = vm.groups
-    this.showEmpty = !vm.hasCourses
-    this.showNeedPhone = vm.emptyState === 'need-phone'
-    if (vm.emptyState === 'need-phone') {
-      this.emptyTitle = '请连接手机'
-      this.emptySub = '打开Nexio课程表发送数据'
-    } else if (vm.emptyState === 'no-class') {
-      this.emptyTitle = '今日无课'
-      this.emptySub = ''
+  },
+  refreshHome() {
+    const now = new Date()
+    const viewDate = this.getViewDate()
+    const vm = schedule.buildHomeViewModel(viewDate, util, now)
+    const layer = this.buildLayer(vm, now, '')
+    // 滑动过程中不打断双层；只更新当前层数据
+    if (this.dayLayers.length === 1) {
+      this.dayLayers = [layer]
+    } else if (this.dayLayers.length >= 2) {
+      const next = this.dayLayers.slice()
+      next[1] = Object.assign({}, next[1], {
+        clockText: layer.clockText
+      })
+      this.dayLayers = next
+    } else {
+      this.dayLayers = [layer]
+    }
+  },
+  /**
+   * 切日。快速连滑时合并位移，保证同一时刻只存在一组出入场层，
+   * 避免多层动画叠在一起乱飞。
+   */
+  goDay(delta) {
+    this._pendingDelta = (this._pendingDelta || 0) + delta
+    if (this._slideTimer) return
+    this._runSlide()
+  },
+  _runSlide() {
+    const delta = this._pendingDelta || 0
+    this._pendingDelta = 0
+    if (!delta) return
+
+    const now = new Date()
+    const oldDate = this.getViewDate()
+    const oldVm = schedule.buildHomeViewModel(oldDate, util, now)
+    const newDate = util.addDays(oldDate, delta)
+    const newVm = schedule.buildHomeViewModel(newDate, util, now)
+
+    // 净位移方向决定滑入边：向后→新页从右侧进，向前→从左侧进
+    const goingNext = delta > 0
+    const outClass = goingNext ? 'layer-out-left' : 'layer-out-right'
+    const inClass = goingNext ? 'layer-in-right' : 'layer-in-left'
+
+    this.dayLayers = [
+      this.buildLayer(oldVm, now, outClass),
+      this.buildLayer(newVm, now, inClass)
+    ]
+    this.viewDateTs = newDate.getTime()
+
+    this._slideTimer = setTimeout(() => {
+      this._slideTimer = null
+      const cur = schedule.buildHomeViewModel(this.getViewDate(), util, new Date())
+      this.dayLayers = [this.buildLayer(cur, new Date(), '')]
+      // 动画期间攒下的滑动，合并后再播下一段
+      if (this._pendingDelta) this._runSlide()
+    }, SLIDE_MS)
+  },
+  onBackToday() {
+    this._pendingDelta = 0
+    if (this._slideTimer) {
+      clearTimeout(this._slideTimer)
+      this._slideTimer = null
+    }
+    this.viewDateTs = 0
+    this.refreshHome()
+  },
+  touchXY(t) {
+    if (!t) return null
+    const x = t.clientX != null ? t.clientX : t.pageX != null ? t.pageX : t.x
+    const y = t.clientY != null ? t.clientY : t.pageY != null ? t.pageY : t.y
+    if (x == null || y == null) return null
+    return { x: x, y: y }
+  },
+  onTouchStart(e) {
+    const t = e && e.touches && e.touches[0]
+    const p = this.touchXY(t)
+    // 左缘起手不切日，留给系统「右滑回桌面」
+    this._touchFromEdge = !!(p && p.x <= EDGE_W)
+    // 同一手势只允许触发一次切日（出入场双层都会挂 handler）
+    this._gestureSwiped = false
+  },
+  onSwipe(e) {
+    // 左缘起手的滑动交给系统返回，应用内不响应
+    if (this._touchFromEdge) {
+      this._touchFromEdge = false
+      return
+    }
+    if (this._gestureSwiped) return
+    this._gestureSwiped = true
+    const dir = e && e.direction
+    if (dir === 'left') {
+      this.goDay(1)
+    } else if (dir === 'right') {
+      this.goDay(-1)
     }
   },
   onTabHome() {
@@ -203,6 +308,116 @@ export default {
     width: 100%;
     height: 100%;
     flex-direction: column;
+    position: relative;
+  }
+
+  /* 左缘透明条：盖住应用横滑，系统「右滑回桌面」才能生效（宽度与 EDGE_W 一致） */
+  .sys-back-edge {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 10px;
+    height: 100%;
+    background-color: transparent;
+  }
+
+  /* 整页横滑舞台：裁切出屏内容 */
+  .day-stage {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  .day-layer {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 出场：向左/右整页滑出 */
+  .layer-out-left {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    animation-name: layerOutLeft;
+    animation-duration: 280ms;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+  }
+
+  .layer-out-right {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    animation-name: layerOutRight;
+    animation-duration: 280ms;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+  }
+
+  /* 入场：从右/左整页滑入 */
+  .layer-in-right {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    animation-name: layerInRight;
+    animation-duration: 280ms;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+  }
+
+  .layer-in-left {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    animation-name: layerInLeft;
+    animation-duration: 280ms;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+  }
+
+  @keyframes layerOutLeft {
+    0% {
+      transform: translateX(0px);
+    }
+    100% {
+      transform: translateX(-336px);
+    }
+  }
+
+  @keyframes layerOutRight {
+    0% {
+      transform: translateX(0px);
+    }
+    100% {
+      transform: translateX(336px);
+    }
+  }
+
+  @keyframes layerInRight {
+    0% {
+      transform: translateX(336px);
+    }
+    100% {
+      transform: translateX(0px);
+    }
+  }
+
+  @keyframes layerInLeft {
+    0% {
+      transform: translateX(-336px);
+    }
+    100% {
+      transform: translateX(0px);
+    }
   }
 
   .body {
@@ -221,11 +436,6 @@ export default {
     padding-left: 10px;
     /* 保证可滚动/回弹：内容不足一屏时也有滚动高度 */
     min-height: 520px;
-  }
-
-  /* 仅增加可滚高度以触发回弹，不改变关于页内部布局 */
-  .screen-about {
-    min-height: 620px;
   }
 
   /* 标题区约 114px，height=240 使文案中心落在屏幕垂直中线附近 */
@@ -264,28 +474,63 @@ export default {
     lines: -1;
   }
 
-  .weekday {
+  .header-row {
     width: 100%;
-    font-size: 32px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    overflow: visible;
+  }
+
+  .weekday {
+    flex-grow: 1;
+    flex-shrink: 1;
+    font-size: 30px;
     font-weight: bold;
     color: #ffffff;
-    margin-bottom: 4px;
+    lines: 1;
+  }
+
+  .clock {
+    width: 88px;
+    height: 38px;
+    flex-shrink: 0;
+    font-size: 26px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-left: 6px;
+    text-align: right;
+    lines: 1;
+  }
+
+  /* 与时间同宽，避免右上角错位 */
+  .today-btn {
+    width: 88px;
+    height: 38px;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    background-color: #2c2c2e;
+    border-radius: 30px;
+    margin-left: 6px;
+  }
+
+  .today-btn-text {
+    font-size: 20px;
+    font-weight: bold;
+    color: #3381FF;
+    text-align: center;
+    lines: 1;
   }
 
   .date-text {
     width: 100%;
-    font-size: 32px;
+    font-size: 30px;
     font-weight: bold;
     color: #ffffff;
     margin-bottom: 16px;
-  }
-
-  .page-title {
-    width: 100%;
-    font-size: 32px;
-    font-weight: bold;
-    color: #ffffff;
-    margin-bottom: 14px;
+    lines: 1;
   }
 
   .card {
@@ -316,6 +561,79 @@ export default {
     justify-content: flex-start;
     align-items: center;
     flex-shrink: 1;
+  }
+
+  /* 下节课课名：中间弹性区，长课名折行；min-width 防止被挤成竖排 */
+  .strong-next {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 96px;
+    lines: -1;
+    font-size: 22px;
+    font-weight: bold;
+    margin-left: 6px;
+    margin-right: 6px;
+    margin-bottom: 5px;
+    color: #ffffff;
+    overflow: visible;
+  }
+
+  /* 列表课名 */
+  .strong {
+    font-size: 22px;
+    font-weight: bold;
+    width: 100%;
+    margin-left: 2px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    color: #ffffff;
+  }
+
+  .blue {
+    font-size: 18px;
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-bottom: 5px;
+    color: #3381FF;
+  }
+
+  .meta {
+    font-size: 17px;
+    font-weight: bold;
+    color: #8e8e93;
+    lines: -1;
+  }
+
+  .tag-wrap {
+    width: 100%;
+    flex-direction: row;
+    margin-top: 5px;
+    margin-bottom: 9px;
+  }
+
+  .tag {
+    font-size: 15px;
+    font-weight: bold;
+    color: #d1d1d6;
+    background-color: #2c2c2e;
+    border-radius: 8px;
+    padding-top: 4px;
+    padding-right: 10px;
+    padding-bottom: 4px;
+    padding-left: 10px;
+  }
+
+  /* 仅增加可滚高度以触发回弹，不改变关于页内部布局 */
+  .screen-about {
+    min-height: 620px;
+  }
+
+  .page-title {
+    width: 100%;
+    font-size: 32px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 14px;
   }
 
   .row-app {
@@ -400,75 +718,6 @@ export default {
     font-weight: bold;
     color: #8e8e93;
     margin-left: 5px;
-  }
-
-  .line1 {
-    width: 100%;
-    font-size: 23px;
-    font-weight: bold;
-    color: #ffffff;
-    margin-top: 2px;
-    margin-bottom: 9px;
-  }
-
-  /* 下节课课名：中间弹性区，长课名折行；min-width 防止被挤成竖排 */
-  .strong-next {
-    flex-grow: 1;
-    flex-shrink: 1;
-    min-width: 96px;
-    lines: -1;
-    font-size: 22px;
-    font-weight: bold;
-    margin-left: 6px;
-    margin-right: 6px;
-    margin-bottom: 5px;
-    color: #ffffff;
-    overflow: visible;
-  }
-
-  /* 列表课名 */
-  .strong {
-    font-size: 22px;
-    font-weight: bold;
-    width: 100%;
-    margin-left: 2px;
-    margin-right: 5px;
-    margin-bottom: 5px;
-    color: #ffffff;
-  }
-
-  .blue {
-    font-size: 18px;
-    font-weight: bold;
-    flex-shrink: 0;
-    margin-bottom: 5px;
-    color: #3381FF;
-  }
-
-  .meta {
-    font-size: 17px;
-    font-weight: bold;
-    color: #8e8e93;
-    lines: -1;
-  }
-
-  .tag-wrap {
-    width: 100%;
-    flex-direction: row;
-    margin-top: 5px;
-    margin-bottom: 9px;
-  }
-
-  .tag {
-    font-size: 15px;
-    font-weight: bold;
-    color: #d1d1d6;
-    background-color: #2c2c2e;
-    border-radius: 8px;
-    padding-top: 4px;
-    padding-right: 10px;
-    padding-bottom: 4px;
-    padding-left: 10px;
   }
 
   /* 悬浮 Tab：原样紧凑胶囊，宽高各 +10px 等比放大，不横向拉伸 */

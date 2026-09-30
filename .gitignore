@@ -174,3 +174,7 @@ Thumbs.db
 # Local reference dumps (optional)
 ref-todoList/
 ref-todoList.zip
+
+# Local backups (not for repo)
+backups/
+
