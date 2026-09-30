@@ -18,9 +18,7 @@ src/                 # 应用源码
   pages/index/       # 主页面
   common/            # 工具与资源（schedule / sync / util）
   manifest.json      # 应用配置
-sign-rpk.js          # RPK 签名脚本
 tools/               # 辅助脚本
-check_*.py           # 构建 / 包体检查脚本
 ```
 
 ## 开发环境

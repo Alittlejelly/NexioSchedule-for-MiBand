@@ -181,3 +181,12 @@ ref-todoList.zip
 # Local backups (not for repo)
 backups/
 
+
+# Local-only helper scripts / debug dumps (do not upload)
+/check_*.py
+/make_icon.py
+/sign-rpk.js
+/jsconfig.json
+/wearable-export.patch
+/tab_about.png
+/tab_home.png
