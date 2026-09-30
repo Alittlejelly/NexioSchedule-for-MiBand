@@ -178,19 +178,41 @@ function groupBySection(courses) {
 }
 
 /**
- * 找出下节课（今天尚未开始的第一节；若今天已上完则返回 null）
+ * 找出正在上的课（开始含、结束不含；若当前无课则返回 null）
  */
-function getNextCourse(courses, now) {
+function getCurrentCourse(courses, now, dayDate) {
+  const base = dayDate || now
   for (let i = 0; i < courses.length; i++) {
     const c = courses[i]
-    const parts = (c.startTime || '').split(':')
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    d.setHours(parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0)
-    if (d.getTime() > now.getTime()) {
+    const start = parseCourseTime(c.startTime, base)
+    const end = parseCourseTime(c.endTime, base)
+    if (now.getTime() >= start.getTime() && now.getTime() < end.getTime()) {
       return c
     }
   }
   return null
+}
+
+/**
+ * 找出下节课（今天尚未开始的第一节；若今天已上完则返回 null）
+ */
+function getNextCourse(courses, now, dayDate) {
+  const base = dayDate || now
+  for (let i = 0; i < courses.length; i++) {
+    const c = courses[i]
+    const start = parseCourseTime(c.startTime, base)
+    if (start.getTime() > now.getTime()) {
+      return c
+    }
+  }
+  return null
+}
+
+function parseCourseTime(timeStr, baseDate) {
+  const parts = (timeStr || '').split(':')
+  const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate())
+  d.setHours(parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0, 0, 0)
+  return d
 }
 
 function getWeekdayName(date) {
@@ -200,6 +222,7 @@ function getWeekdayName(date) {
 /**
  * 组装首页展示模型（与手机端今日页字段对齐）
  * viewDate：要查看的日期；realNow：真实当前时刻（用于状态/倒计时）
+ * 上课中：顶部卡片显示正在上的课，倒计时为距下课；否则显示下节课与距上课。
  */
 function buildHomeViewModel(viewDate, util, realNow) {
   const date = viewDate || new Date()
@@ -207,7 +230,8 @@ function buildHomeViewModel(viewDate, util, realNow) {
   const isToday = util.isSameDay(date, now)
   const courses = getCoursesForDate(date)
   const groups = groupBySection(courses)
-  const next = isToday ? getNextCourse(courses, now) : null
+  const current = isToday ? getCurrentCourse(courses, now, date) : null
+  const next = isToday ? getNextCourse(courses, now, date) : null
 
   const sectionViews = []
   for (let i = 0; i < groups.length; i++) {
@@ -233,17 +257,22 @@ function buildHomeViewModel(viewDate, util, realNow) {
     })
   }
 
+  // 上课中优先展示当前课，倒计时改距下课；否则维持「下节课 + 距上课」
+  const focus = current || next
   let nextView = null
-  if (next) {
-    const startParts = (next.startTime || '').split(':')
-    const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-    startDate.setHours(parseInt(startParts[0], 10) || 0, parseInt(startParts[1], 10) || 0, 0, 0)
-    const cd = util.formatCountdown(startDate, now)
+  if (focus) {
+    const isCurrent = !!current
+    const base = date
+    const target = isCurrent
+      ? parseCourseTime(focus.endTime, base)
+      : parseCourseTime(focus.startTime, base)
+    const cd = isCurrent ? util.formatRemain(target, now) : util.formatCountdown(target, now)
     nextView = {
-      id: next.id,
-      name: next.name,
-      timeText: next.startTime + ' - ' + next.endTime,
-      meta: buildMeta(next),
+      id: focus.id,
+      name: focus.name,
+      label: isCurrent ? '正在上课' : '下节课',
+      timeText: focus.startTime + ' - ' + focus.endTime,
+      meta: buildMeta(focus),
       countdown: cd.text
     }
   }
@@ -286,6 +315,7 @@ export default {
   getTodayCourses,
   getCoursesForDate,
   groupBySection,
+  getCurrentCourse,
   getNextCourse,
   setSchedule,
   replaceWeek,

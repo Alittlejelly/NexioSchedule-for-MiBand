@@ -80,6 +80,36 @@ function formatCountdown(target, now) {
 }
 
 /**
+ * 距下课剩余文案：还剩 N 分钟 / 还剩 N小时M分钟（上课中用）
+ */
+function formatRemain(target, now) {
+  const diff = target.getTime() - now.getTime()
+  if (diff <= 0) {
+    return {
+      text: '即将下课',
+      ended: true,
+      upcoming: false
+    }
+  }
+  const totalMin = Math.ceil(diff / 60000)
+  const hours = Math.floor(totalMin / 60)
+  const mins = totalMin % 60
+  let body
+  if (hours > 0 && mins > 0) {
+    body = hours + '小时' + mins + '分钟'
+  } else if (hours > 0) {
+    body = hours + '小时'
+  } else {
+    body = totalMin + ' 分钟'
+  }
+  return {
+    text: '还剩 ' + body,
+    ended: false,
+    upcoming: true
+  }
+}
+
+/**
  * 课程状态：未开始 / 进行中 / 已结束
  * dayDate 为课程所在日期，now 为真实当前时刻（可跨日查看）
  */
@@ -122,5 +152,6 @@ export default {
   addDays,
   parseTimeToday,
   formatCountdown,
+  formatRemain,
   getCourseStatus
 }

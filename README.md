@@ -48,6 +48,7 @@ npm run release  # 发布构建
 
 | 版本 | versionCode | 说明 | 下载 |
 |------|-------------|------|------|
+| 1.1.1 | 20 | 优化全局配色；新增正在上课卡片；可与正式版 Nexio 课程表通讯 | [release/com.haooz.chedule.release.1.1.1.rpk](./release/com.haooz.chedule.release.1.1.1.rpk) |
 | 1.1.0 | 19 | 新增左右横滑查看更多课表 | [release/com.haooz.chedule.release.1.1.0.rpk](./release/com.haooz.chedule.release.1.1.0.rpk) |
 | 1.0.1 | 18 | 布局铺满屏幕；下节课课名折行显示 | [release/com.haooz.chedule.release.1.0.1.rpk](./release/com.haooz.chedule.release.1.0.1.rpk) |
 | 1.0.0 | 17 | 首个手环端正式签名发行包 | [release/com.haooz.chedule.release.1.0.0.rpk](./release/com.haooz.chedule.release.1.0.0.rpk) |

@@ -151,6 +151,9 @@ sign/
 *.keystore
 keystore.properties
 **/keystore/
+# Local key material (file, not directory)
+/Haooz
+Haooz
 __MACOSX/
 
 # Build outputs / packages
