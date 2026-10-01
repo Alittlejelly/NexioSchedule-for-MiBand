@@ -14,7 +14,9 @@ const SECTION_META = {
 const SECTION_ORDER = ['morning', 'afternoon', 'evening']
 
 /**
- * 一周课程：key 为 0-6（周日-周六）
+ * 一周课程：key 为 0-6（周日-周六，即 JS Date.getDay() 原生值）
+ * 注意与手机协议区分：协议 v2 的 week 键为 1-7（1=周一..7=周日），
+ * 换算只在 sync.js 的 normalizePayload 边界完成，本模块只认 0-6。
  * 每节课：{ id, name, location, teacher, startTime, endTime, periods, section }
  * 默认空表，数据只来自手机同步，避免示例课造成误解
  */
@@ -55,7 +57,8 @@ function setHolidays(list) {
       name: h.name || '',
       type: type,
       followWeek: h.followWeek == null ? -1 : h.followWeek,
-      followWeekday: h.followWeekday == null ? -1 : h.followWeekday
+      followWeekday:
+        h.followWeekday == null ? -1 : parseInt(h.followWeekday, 10)
     })
   }
 }

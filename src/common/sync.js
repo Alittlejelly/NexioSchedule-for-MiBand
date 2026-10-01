@@ -10,18 +10,30 @@
  * type=0 假期隐藏课程，type=1 调休改上 followWeekday 的课。
  *
  * ---------------------------------------------------------------------------
- * 同步协议（手机端按此结构推送即可）
+ * 同步协议 v2（手机端按此结构推送即可）
  * ---------------------------------------------------------------------------
  * 消息形态：JSON 字符串或已解析对象，经 connect.onmessage 送达。
  *
+ * 星期编号统一为「手机域」1-7（1=周一 ... 7=周日），涉及三处：
+ *   - week 的键
+ *   - days[].weekday
+ *   - holidays[].followWeekday
+ * 手环内部仍用 JS 原生 0-6（0=周日 ... 6=周六），换算只发生在 normalizePayload
+ * 这一个边界（见 phoneWeekdayToInternal），schedule.js / 页面层不感知版本差异。
+ *
+ * 注意：v1 曾用 0-6 表示 week 的键，两者仅「周日」不同（v1 的 0 = v2 的 7），
+ * 周一到周六都是 1-6。因此按键值无法区分新旧编号，只能靠 version 判定。
+ * 本项目从未发布过带手环通讯的正式版，故不兼容 v1，收到 version=1 直接拒绝，
+ * 避免「v1 编号 + v2 解析」导致周一~周六整体错位一天且不报错。
+ *
  * {
  *   "protocol": "nexio.schedule",
- *   "version": 1,
+ *   "version": 2,
  *   "action": "replace",          // replace=整周覆盖 | upsert=按天合并 | clear=清空
  *   "sentAt": 1728373680000,      // 可选，手机发送时间戳
  *   "quote": "每日一句",           // 可选
- *   "week": {                     // 键为 0-6（周日-周六），值为课程数组
- *     "4": [
+ *   "week": {                     // 键为 1-7（周一-周日），值为课程数组
+ *     "1": [
  *       {
  *         "id": "c-1001",         // 可选，稳定唯一 id，用于列表 tid
  *         "name": "示例课程",
@@ -39,15 +51,15 @@
  * 也支持按具体日期推送（与手机端「今日」页对齐）：
  * {
  *   "protocol": "nexio.schedule",
- *   "version": 1,
+ *   "version": 2,
  *   "action": "replace",
- *   "days": [
+ *   "days": [                     // 逐日推送；weekday 同为 1-7（1=周一..7=周日）
  *     { "date": "2026-10-08", "weekday": 4, "courses": [] }
  *   ]
  * }
  *
  * 手表端可回传（requestSync）：
- * { "protocol": "nexio.schedule", "version": 1, "action": "request", "reason": "app-open" }
+ * { "protocol": "nexio.schedule", "version": 2, "action": "request", "reason": "app-open" }
  *
  * 注意：interconnect 要求手表 rpk 与手机 App 包名、签名一致。
  */
@@ -57,7 +69,8 @@ import storage from '@system.storage'
 import schedule from './schedule'
 
 const PROTOCOL = 'nexio.schedule'
-const PROTOCOL_VERSION = 1
+/** 协议版本：v2 起星期编号统一为 1-7（1=周一..7=周日），见文件头说明 */
+const PROTOCOL_VERSION = 2
 const STORAGE_KEY = 'nexio.schedule.payload'
 
 const ACTION = {
@@ -109,6 +122,32 @@ function parseMessage(raw) {
     return parseMessage(raw.data)
   }
   return isPlainObject(raw) ? raw : null
+}
+
+/** 手机域星期(1=周一..7=周日) → 手环内部 week key(0=周日..6=周六)，非法返回 -1 */
+function phoneWeekdayToInternal(phoneWeekday) {
+  const d = parseInt(phoneWeekday, 10)
+  if (isNaN(d) || d < 1 || d > 7) return -1
+  return d === 7 ? 0 : d
+}
+
+/**
+ * 由日期字符串推星期（手机域 1-7）。
+ * 注意：ISO 纯日期串（如 "2026-10-08"）会被 Date 按 UTC 午夜解析，
+ * 而 getDay() 按本地时区求值，负时区下会退回前一天。
+ * 故这里显式按 YYYY-MM-DD 构造本地时间，与手机端「今日」页保持同一天。
+ */
+function phoneWeekdayFromDate(dateStr) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(dateStr || ''))
+  let d
+  if (m) {
+    d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10))
+  } else {
+    d = new Date(dateStr)
+  }
+  if (isNaN(d.getTime())) return -1
+  const jsDay = d.getDay()
+  return jsDay === 0 ? 7 : jsDay
 }
 
 function normalizeCourse(item, index, dayKey) {
@@ -165,6 +204,8 @@ function normalizePayload(raw) {
   if (msg.protocol && msg.protocol !== PROTOCOL) {
     return { ok: false, error: 'protocol mismatch: ' + msg.protocol }
   }
+  // v2 起只接受 version=2；v1 的 week 键是 0-6，与 v2 仅「周日」不同，
+  // 无法按键值区分，混用会让周一~周六整体错位一天且不报错，故直接拒绝。
   const version = msg.version != null ? Number(msg.version) : PROTOCOL_VERSION
   if (version !== PROTOCOL_VERSION) {
     return { ok: false, error: 'unsupported version: ' + version }
@@ -192,8 +233,10 @@ function normalizePayload(raw) {
     const keys = Object.keys(msg.week)
     for (let i = 0; i < keys.length; i++) {
       const key = String(keys[i])
-      const day = parseInt(key, 10)
-      if (isNaN(day) || day < 0 || day > 6) {
+      // v2：键为 1-7（1=周一..7=周日），越界（含旧版的 0）直接判非法
+      const phoneDay = parseInt(key, 10)
+      const day = phoneWeekdayToInternal(phoneDay)
+      if (day < 0) {
         return { ok: false, error: 'invalid weekday key: ' + key }
       }
       week[day] = normalizeCourseList(msg.week[key], String(day))
@@ -201,13 +244,11 @@ function normalizePayload(raw) {
   } else if (Array.isArray(msg.days)) {
     for (let i = 0; i < msg.days.length; i++) {
       const dayItem = msg.days[i] || {}
-      let day = dayItem.weekday
-      if (day == null && dayItem.date) {
-        const d = new Date(dayItem.date)
-        if (!isNaN(d.getTime())) day = d.getDay()
-      }
-      day = parseInt(day, 10)
-      if (isNaN(day) || day < 0 || day > 6) {
+      // v2：weekday 同为 1-7；缺省时由 date 推导（同样折算为手机域）
+      const phoneDay =
+        dayItem.weekday != null ? dayItem.weekday : phoneWeekdayFromDate(dayItem.date)
+      const day = phoneWeekdayToInternal(phoneDay)
+      if (day < 0) {
         return { ok: false, error: 'invalid day entry index ' + i }
       }
       week[day] = normalizeCourseList(dayItem.courses, String(day))
