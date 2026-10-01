@@ -179,7 +179,16 @@ export default {
       groups: vm.groups,
       showEmpty: !vm.hasCourses,
       showNeedPhone: vm.emptyState === 'need-phone',
-      emptyTitle: vm.emptyState === 'need-phone' ? '请连接手机' : (vm.isToday ? '今日无课' : '当天无课'),
+      emptyTitle:
+        vm.emptyState === 'need-phone'
+          ? '请连接手机'
+          : vm.emptyState === 'holiday'
+            ? vm.isToday
+              ? '今日是假期，好好休息吧'
+              : '当天是假期，好好休息吧'
+            : vm.isToday
+              ? '今日无课'
+              : '当天无课',
       emptySub: '打开Nexio课程表发送数据'
     }
   },

@@ -4,8 +4,10 @@
  * 对端应用：手机端课程表（包名 com.haooz.chedule）
  * 主通道：@system.interconnect（与手机 App 双向通信）
  *
- * 不落盘缓存个人课表：启动时清空历史 storage，仅展示本次会话手机推送的数据。
- * 未收到推送时保持空表，由页面提示「请连接手机」。
+ * 本地缓存：@system.storage（冷启动恢复，断开手机仍可查看上次同步的课表）
+ * 协议可选字段 holidays：兼容 HolidayManager.Entry 数组，
+ * [{date, endDate, name, type, followWeek, followWeekday}]；
+ * type=0 假期隐藏课程，type=1 调休改上 followWeekday 的课。
  *
  * ---------------------------------------------------------------------------
  * 同步协议（手机端按此结构推送即可）
@@ -56,8 +58,7 @@ import schedule from './schedule'
 
 const PROTOCOL = 'nexio.schedule'
 const PROTOCOL_VERSION = 1
-/** 旧版本曾缓存个人课表，启动时删除该 key */
-const LEGACY_STORAGE_KEY = 'nexio.schedule.payload'
+const STORAGE_KEY = 'nexio.schedule.payload'
 
 const ACTION = {
   REPLACE: 'replace',
@@ -181,6 +182,7 @@ function normalizePayload(raw) {
         version: PROTOCOL_VERSION,
         action: ACTION.CLEAR,
         quote: msg.quote || '',
+        holidays: normalizeHolidays(msg.holidays),
         week: week
       }
     }
@@ -222,8 +224,55 @@ function normalizePayload(raw) {
       action: action,
       sentAt: msg.sentAt || Date.now(),
       quote: msg.quote || '',
+      holidays: normalizeHolidays(msg.holidays),
       week: week
     }
+  }
+}
+
+/**
+ * 归一化假期/调休（兼容 HolidayManager.Entry）：
+ * [{date|start, endDate|end, name, type, followWeek, followWeekday}]
+ * type: 0=假期(隐藏课程) 1=调休(改上 followWeekday 的课)
+ */
+function normalizeHolidays(list) {
+  const out = []
+  if (!Array.isArray(list)) return out
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i]
+    if (!isPlainObject(item)) continue
+    const start = String(item.start || item.date || '')
+    const end = String(item.end || item.endDate || start)
+    if (!start) continue
+    const type = item.type == null ? 0 : parseInt(item.type, 10)
+    out.push({
+      start: start,
+      end: end || start,
+      name: String(item.name || ''),
+      type: type === 1 ? 1 : 0,
+      followWeek: item.followWeek == null ? -1 : parseInt(item.followWeek, 10),
+      followWeekday: item.followWeekday == null ? -1 : parseInt(item.followWeekday, 10)
+    })
+  }
+  return out
+}
+
+function persist(payload, done) {
+  try {
+    storage.set({
+      key: STORAGE_KEY,
+      value: JSON.stringify(payload),
+      success: function () {
+        if (done) done(null)
+      },
+      fail: function (data, code) {
+        lastError = 'storage.set fail ' + code
+        if (done) done(lastError)
+      }
+    })
+  } catch (e) {
+    lastError = String(e)
+    if (done) done(lastError)
   }
 }
 
@@ -231,10 +280,14 @@ function applyPayload(payload) {
   cachedQuote = payload.quote || ''
   if (payload.action === ACTION.CLEAR) {
     schedule.replaceWeek({})
+    schedule.setHolidays([])
   } else if (payload.action === ACTION.UPSERT) {
     schedule.mergeWeek(payload.week || {})
   } else {
     schedule.replaceWeek(payload.week || {})
+  }
+  if (payload.action !== ACTION.CLEAR) {
+    schedule.setHolidays(payload.holidays || [])
   }
   schedule.setQuote(cachedQuote)
 }
@@ -252,9 +305,13 @@ function handlePhoneMessage(raw) {
     return result
   }
   appliedRev += 1
+  const rev = appliedRev
   applyPayload(result.payload)
+  persist(result.payload, function () {
+    if (rev === appliedRev) notify()
+  })
   notify()
-  console.log('[sync] applied rev=' + appliedRev + ' action=' + result.payload.action)
+  console.log('[sync] applied rev=' + rev + ' action=' + result.payload.action)
   return { ok: true }
 }
 
@@ -311,30 +368,9 @@ function requestSync(reason) {
 }
 
 /**
- * 清除旧版本落盘的个人课表缓存（仅清理，不写回）
- */
-function clearLegacyCache() {
-  try {
-    storage.delete({
-      key: LEGACY_STORAGE_KEY,
-      success: function () {
-        console.log('[sync] legacy cache cleared')
-      },
-      fail: function (data, code) {
-        // 无缓存时 delete 也可能失败，忽略即可
-        console.log('[sync] legacy cache clear fail', code)
-      }
-    })
-  } catch (e) {
-    console.log('[sync] legacy cache clear error', e)
-  }
-}
-
-/**
- * 启动同步通道：清历史缓存 + 监听手机消息（不恢复本地课表）
+ * 启动同步通道：恢复缓存 + 监听手机消息
  */
 function init() {
-  clearLegacyCache()
   if (connect) return
   try {
     connect = interconnect.instance()
@@ -351,6 +387,26 @@ function init() {
   } catch (e) {
     lastError = String(e)
     console.log('[sync] init fail', lastError)
+  }
+
+  try {
+    storage.get({
+      key: STORAGE_KEY,
+      success: function (data) {
+        if (!data) return
+        if (appliedRev > 0) return
+        const result = normalizePayload(data)
+        if (result.ok) {
+          applyPayload(result.payload)
+          notify()
+        }
+      },
+      fail: function (data, code) {
+        lastError = 'storage.get fail ' + code
+      }
+    })
+  } catch (e) {
+    lastError = String(e)
   }
 }
 
