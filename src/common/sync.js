@@ -3,10 +3,12 @@
  *
  * 对端应用：手机端课程表（包名 com.haooz.chedule）
  * 主通道：@system.interconnect（与手机 App 双向通信）
- * 本地缓存：@system.storage（冷启动恢复，避免无网/未连接时空白）
+ *
+ * 不落盘缓存个人课表：启动时清空历史 storage，仅展示本次会话手机推送的数据。
+ * 未收到推送时保持空表，由页面提示「请连接手机」。
  *
  * ---------------------------------------------------------------------------
- * 同步协议（手机端按此结构推送即可，手表端已预留完整入口）
+ * 同步协议（手机端按此结构推送即可）
  * ---------------------------------------------------------------------------
  * 消息形态：JSON 字符串或已解析对象，经 connect.onmessage 送达。
  *
@@ -15,17 +17,17 @@
  *   "version": 1,
  *   "action": "replace",          // replace=整周覆盖 | upsert=按天合并 | clear=清空
  *   "sentAt": 1728373680000,      // 可选，手机发送时间戳
- *   "quote": "看得挺认真，就是一点用没有",  // 可选，每日一句
+ *   "quote": "每日一句",           // 可选
  *   "week": {                     // 键为 0-6（周日-周六），值为课程数组
  *     "4": [
  *       {
  *         "id": "c-1001",         // 可选，稳定唯一 id，用于列表 tid
- *         "name": "移动终端应用及开发技术",
+ *         "name": "示例课程",
  *         "startTime": "09:10",   // 必填，HH:mm
  *         "endTime": "10:30",     // 必填，HH:mm
- *         "periods": "第4-5节",   // 可选，节次或时间文案（与手机端一致）
- *         "location": "通信工程实训室",
- *         "teacher": "谭婷芳",
+ *         "periods": "第4-5节",   // 可选，节次或时间文案
+ *         "location": "示例教室",
+ *         "teacher": "示例教师",
  *         "section": "morning"    // 可选，缺省时按 startTime 自动推断
  *       }
  *     ]
@@ -38,7 +40,7 @@
  *   "version": 1,
  *   "action": "replace",
  *   "days": [
- *     { "date": "2026-10-08", "weekday": 4, "courses": [ /* 同上 Course * / ] }
+ *     { "date": "2026-10-08", "weekday": 4, "courses": [] }
  *   ]
  * }
  *
@@ -46,8 +48,6 @@
  * { "protocol": "nexio.schedule", "version": 1, "action": "request", "reason": "app-open" }
  *
  * 注意：interconnect 要求手表 rpk 与手机 App 包名、签名一致。
- * 当前手表包名 com.example.bandschedule，真机联调前需改为 com.haooz.chedule，
- * 并使用手机端同一套签名证书。
  */
 
 import interconnect from '@system.interconnect'
@@ -56,7 +56,8 @@ import schedule from './schedule'
 
 const PROTOCOL = 'nexio.schedule'
 const PROTOCOL_VERSION = 1
-const STORAGE_KEY = 'nexio.schedule.payload'
+/** 旧版本曾缓存个人课表，启动时删除该 key */
+const LEGACY_STORAGE_KEY = 'nexio.schedule.payload'
 
 const ACTION = {
   REPLACE: 'replace',
@@ -74,7 +75,7 @@ let connect = null
 let ready = false
 let lastError = null
 let cachedQuote = ''
-/** 已应用的最新同步序号，用于丢弃晚到的旧 storage 缓存 */
+/** 已应用的最新同步序号 */
 let appliedRev = 0
 
 function notify() {
@@ -226,25 +227,6 @@ function normalizePayload(raw) {
   }
 }
 
-function persist(payload, done) {
-  try {
-    storage.set({
-      key: STORAGE_KEY,
-      value: JSON.stringify(payload),
-      success: function () {
-        if (done) done(null)
-      },
-      fail: function (data, code) {
-        lastError = 'storage.set fail ' + code
-        if (done) done(lastError)
-      }
-    })
-  } catch (e) {
-    lastError = String(e)
-    if (done) done(lastError)
-  }
-}
-
 function applyPayload(payload) {
   cachedQuote = payload.quote || ''
   if (payload.action === ACTION.CLEAR) {
@@ -270,14 +252,9 @@ function handlePhoneMessage(raw) {
     return result
   }
   appliedRev += 1
-  const rev = appliedRev
   applyPayload(result.payload)
-  persist(result.payload, function () {
-    if (rev === appliedRev) notify()
-  })
-  // 若 storage 回调异常延迟，也先通知一次保证 UI 及时刷新
   notify()
-  console.log('[sync] applied rev=' + rev + ' action=' + result.payload.action)
+  console.log('[sync] applied rev=' + appliedRev + ' action=' + result.payload.action)
   return { ok: true }
 }
 
@@ -334,9 +311,30 @@ function requestSync(reason) {
 }
 
 /**
- * 启动同步通道：恢复缓存 + 监听手机消息
+ * 清除旧版本落盘的个人课表缓存（仅清理，不写回）
+ */
+function clearLegacyCache() {
+  try {
+    storage.delete({
+      key: LEGACY_STORAGE_KEY,
+      success: function () {
+        console.log('[sync] legacy cache cleared')
+      },
+      fail: function (data, code) {
+        // 无缓存时 delete 也可能失败，忽略即可
+        console.log('[sync] legacy cache clear fail', code)
+      }
+    })
+  } catch (e) {
+    console.log('[sync] legacy cache clear error', e)
+  }
+}
+
+/**
+ * 启动同步通道：清历史缓存 + 监听手机消息（不恢复本地课表）
  */
 function init() {
+  clearLegacyCache()
   if (connect) return
   try {
     connect = interconnect.instance()
@@ -353,28 +351,6 @@ function init() {
   } catch (e) {
     lastError = String(e)
     console.log('[sync] init fail', lastError)
-    return
-  }
-
-  try {
-    storage.get({
-      key: STORAGE_KEY,
-      success: function (data) {
-        if (!data) return
-        // 已收到更新的手机推送时，忽略晚到的旧缓存
-        if (appliedRev > 0) return
-        const result = normalizePayload(data)
-        if (result.ok) {
-          applyPayload(result.payload)
-          notify()
-        }
-      },
-      fail: function (data, code) {
-        lastError = 'storage.get fail ' + code
-      }
-    })
-  } catch (e) {
-    lastError = String(e)
   }
 }
 

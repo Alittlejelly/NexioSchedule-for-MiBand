@@ -39,7 +39,7 @@ function hasSyncedSchedule() {
   return hasSynced
 }
 
-let quoteText = '看得挺认真，就是一点用没有'
+let quoteText = ''
 
 function setQuote(text) {
   quoteText = text || ''

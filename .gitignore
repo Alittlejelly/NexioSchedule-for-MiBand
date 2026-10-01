@@ -190,3 +190,12 @@ backups/
 /wearable-export.patch
 /tab_about.png
 /tab_home.png
+
+# AI / IDE 工程脚手架（本机工作流，不入库）
+.claude/
+.github/
+.kiro/
+.workflow/
+
+# 互联 demo / SDK 参考资料（体积大，非本应用源码）
+assets/
