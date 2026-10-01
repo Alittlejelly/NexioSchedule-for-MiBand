@@ -83,7 +83,29 @@
           </div>
         </div>
       </div>
+
+      <!-- 打赏入口：放在关于页最后 -->
+      <div class="card entry-card" onclick="onOpenReward">
+        <div class="entry-row">
+          <text class="entry-label">打赏支持</text>
+          <text class="entry-hint">扫码支持</text>
+        </div>
+      </div>
     </div>
+    </scroll>
+
+    <!-- ============ 打赏 ============ -->
+    <scroll class="body" scroll-y="true" bounces="true" if="{{isReward}}">
+      <!-- 打赏页：向右侧滑返回关于页 -->
+      <div class="screen-reward" onswipe="onRewardSwipe">
+        <div class="reward-head">
+          <text class="reward-title">感谢打赏！</text>
+          <text class="reward-title">谢谢喵！</text>
+        </div>
+        <div class="reward-card">
+          <image class="reward-qr" src="/common/reward_qr.png"></image>
+        </div>
+      </div>
     </scroll>
 
     <div class="sys-back-edge" if="{{isHome}}"></div>
@@ -96,7 +118,7 @@
           <div class="tab-hl tab-in-l" show="{{isHome}}">
             <image class="tab-icon" src="/common/tab_home.png"></image>
           </div>
-          <div class="tab-hl-off tab-in-l" show="{{isAbout}}">
+          <div class="tab-hl-off tab-in-l" show="{{aboutActive}}">
             <image class="tab-icon" src="/common/tab_home.png"></image>
           </div>
         </div>
@@ -104,7 +126,7 @@
 
       <div class="tab-btn" onclick="onTabAbout">
         <div class="tab-slot">
-          <div class="tab-hl tab-in-r" show="{{isAbout}}">
+          <div class="tab-hl tab-in-r" show="{{aboutActive}}">
             <image class="tab-icon" src="/common/tab_about.png"></image>
           </div>
           <div class="tab-hl-off tab-in-r" show="{{isHome}}">
@@ -130,6 +152,9 @@ export default {
   private: {
     isHome: true,
     isAbout: false,
+    isReward: false,
+    /* 打赏页也算「关于」这一支：底部 Tab 保持高亮 */
+    aboutActive: false,
     dayLayers: [],
     viewDateTs: 0
   },
@@ -291,11 +316,30 @@ export default {
   onTabHome() {
     this.isHome = true
     this.isAbout = false
+    this.isReward = false
+    this.aboutActive = false
     this.refreshHome()
   },
   onTabAbout() {
     this.isHome = false
     this.isAbout = true
+    this.isReward = false
+    this.aboutActive = true
+  },
+  /** 关于页 → 打赏页 */
+  onOpenReward() {
+    this.isHome = false
+    this.isAbout = false
+    this.isReward = true
+    this.aboutActive = true
+  },
+  /** 打赏页向右侧滑返回关于页 */
+  onRewardSwipe(e) {
+    if (e && e.direction === 'right') {
+      this.isReward = false
+      this.isAbout = true
+      this.aboutActive = true
+    }
   }
 }
 </script>
@@ -810,5 +854,72 @@ export default {
     height: 43px;
     flex-shrink: 0;
     align-self: center;
+  }
+
+  /* ---------------- 关于页：打赏入口 ---------------- */
+  .entry-row {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .entry-label {
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffffff;
+    lines: 1;
+  }
+
+  .entry-hint {
+    font-size: 14px;
+    font-weight: bold;
+    color: #3381FF;
+    lines: 1;
+  }
+
+  /* ---------------- 打赏页 ----------------
+     标题两行居中，白卡片放收款码（素材 232x252，按 230x251 放，接近 1:1）。
+     卡片底边 376，留在悬浮 Tab（顶部 385）之上，不会被压住。 */
+  .screen-reward {
+    width: 100%;
+    min-height: 520px;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 110px;
+  }
+
+  .reward-head {
+    width: 100%;
+    padding-top: 36px;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .reward-title {
+    height: 37px;
+    font-size: 30px;
+    font-weight: bold;
+    color: #ffffff;
+    text-align: center;
+    lines: 1;
+  }
+
+  .reward-card {
+    width: 230px;
+    height: 251px;
+    margin-top: 15px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .reward-qr {
+    width: 230px;
+    height: 251px;
+    flex-shrink: 0;
   }
 </style>
