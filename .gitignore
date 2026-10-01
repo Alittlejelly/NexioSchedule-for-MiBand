@@ -197,5 +197,8 @@ backups/
 .kiro/
 .workflow/
 
+# DSH 沙箱权限修复记录（本机产物，不入库）
+.dsh-acl-recovery/
+
 # 互联 demo / SDK 参考资料（体积大，非本应用源码）
 assets/
