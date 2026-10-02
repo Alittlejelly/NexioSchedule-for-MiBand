@@ -2,57 +2,53 @@
   <div class="page">
     <stack class="page-stack">
     <div class="body-layer">
-    <stack class="day-stage" if="{{isHome}}">
-      <!-- tid="key"：节点按 key 复用而不是按数组下标复用。
-           收敛成单层时，被复用的必须是「动画终值停在 0 位」的入场层；
-           若按下标复用，老引擎（Vela 3.6）会把离场层的 translateX(-336px) 留在屏幕上 → 黑屏 -->
-      <div class="day-layer {{layer.layerClass}}" for="{{(layerIndex, layer) in dayLayers}}" tid="key">
-        <scroll class="body" scroll-y="true" bounces="true">
-          <div class="screen" onswipe="onSwipe" ontouchstart="onTouchStart">
-            <div class="header-row">
-              <text class="weekday">{{layer.weekday}}</text>
-              <text class="clock" if="{{layer.isToday}}">{{layer.clockText}}</text>
-              <div class="today-btn" else onclick="onBackToday">
-                <text class="today-btn-text">今</text>
-              </div>
+    <!-- 单层常驻结构：切日只换数据、不重建任何节点。
+         Vela 3.6（小米手环 9 Pro）上重建带 scroll 的层节点会导致整屏黑且点不动，
+         所以这里没有双层、没有 for 复用、没有动画，切日只更新下面这些绑定。 -->
+    <scroll class="body" scroll-y="true" bounces="true" if="{{isHome}}">
+      <div class="screen" onswipe="onSwipe" ontouchstart="onTouchStart">
+        <div class="header-row">
+          <text class="weekday">{{day.weekday}}</text>
+          <text class="clock" if="{{day.isToday}}">{{day.clockText}}</text>
+          <div class="today-btn" else onclick="onBackToday">
+            <text class="today-btn-text">今</text>
+          </div>
+        </div>
+        <text class="date-text">{{day.dateText}}</text>
+
+        <div class="card" if="{{day.hasNext}}">
+          <div class="row">
+            <text class="blue">{{day.nextLabel}}</text>
+            <text class="strong-next">{{day.nextName}}</text>
+            <text class="blue">{{day.nextCountdown}}</text>
+          </div>
+          <text class="meta">{{day.nextMeta}}</text>
+        </div>
+
+        <block for="{{(groupIndex, group) in day.groups}}">
+          <div class="tag-wrap">
+            <text class="tag">{{group.label}}</text>
+          </div>
+          <div class="card" for="{{(courseIndex, course) in group.courses}}">
+            <div class="row">
+              <text class="strong">{{course.name}}</text>
+              <text class="blue">{{course.timeText}}</text>
             </div>
-            <text class="date-text">{{layer.dateText}}</text>
-
-            <div class="card" if="{{layer.hasNext}}">
-              <div class="row">
-                <text class="blue">{{layer.nextLabel}}</text>
-                <text class="strong-next">{{layer.nextName}}</text>
-                <text class="blue">{{layer.nextCountdown}}</text>
-              </div>
-              <text class="meta">{{layer.nextMeta}}</text>
-            </div>
-
-            <block for="{{(groupIndex, group) in layer.groups}}">
-              <div class="tag-wrap">
-                <text class="tag">{{group.label}}</text>
-              </div>
-              <div class="card" for="{{(courseIndex, course) in group.courses}}">
-                <div class="row">
-                  <text class="strong">{{course.name}}</text>
-                  <text class="blue">{{course.timeText}}</text>
-                </div>
-                <div class="row">
-                  <text class="meta">{{course.meta}}</text>
-                  <text class="meta">{{course.status}}</text>
-                </div>
-              </div>
-            </block>
-
-            <div class="empty-wrap" if="{{layer.showEmpty}}">
-              <div class="empty-pill">
-                <text class="empty-title">{{layer.emptyTitle}}</text>
-                <text class="empty-sub" if="{{layer.showNeedPhone}}">{{layer.emptySub}}</text>
-              </div>
+            <div class="row">
+              <text class="meta">{{course.meta}}</text>
+              <text class="meta">{{course.status}}</text>
             </div>
           </div>
-        </scroll>
+        </block>
+
+        <div class="empty-wrap" if="{{day.showEmpty}}">
+          <div class="empty-pill">
+            <text class="empty-title">{{day.emptyTitle}}</text>
+            <text class="empty-sub" if="{{day.showNeedPhone}}">{{day.emptySub}}</text>
+          </div>
+        </div>
       </div>
-    </stack>
+    </scroll>
 
     <scroll class="body" scroll-y="true" bounces="true" if="{{isAbout}}">
     <div class="screen screen-about">
@@ -63,7 +59,7 @@
           <image class="app-icon" src="/common/about_icon.png"></image>
           <div class="app-text">
             <text class="app-name">nexio课程表</text>
-            <text class="app-ver">版本: v1.0.0</text>
+            <text class="app-ver">版本: v1.1.2</text>
           </div>
         </div>
       </div>
@@ -155,10 +151,6 @@ import schedule from '../../common/schedule'
 import util from '../../common/util'
 import device from '@system.device'
 
-/** CSS 出入场动画时长（ms），必须与 .layer-* 的 animation-duration 一致 */
-const ANIM_MS = 280
-/** 状态收敛延时：动画结束后再留一点余量，避免 JS 定时器抢在原生动画前面换层 */
-const SLIDE_MS = ANIM_MS + 40
 /** 左缘留给系统「右滑回桌面」的宽度，与 .sys-back-edge 保持一致 */
 const EDGE_W = 12
 
@@ -169,7 +161,8 @@ export default {
     isReward: false,
     /* 打赏页也算「关于」这一支：底部 Tab 保持高亮 */
     aboutActive: false,
-    dayLayers: [],
+    /* 当前展示的那一天（单层常驻，切日只换这个对象） */
+    day: {},
     viewDateTs: 0,
     /* 同步诊断（关于页展示） */
     diagLine1: '',
@@ -197,14 +190,9 @@ export default {
     sync.ensureFresh('show')
   },
   onDestroy() {
-    this._pendingDelta = 0
     if (this._refreshTimer) {
       clearInterval(this._refreshTimer)
       this._refreshTimer = null
-    }
-    if (this._slideTimer) {
-      clearTimeout(this._slideTimer)
-      this._slideTimer = null
     }
     if (this.unsubscribe) {
       this.unsubscribe()
@@ -213,10 +201,6 @@ export default {
   },
   getViewDate() {
     return this.viewDateTs ? new Date(this.viewDateTs) : new Date()
-  },
-  /** 某一天的稳定字符串 key，用作 for 的 tid（同一天必须是同一个值） */
-  dayKey(date) {
-    return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate()
   },
   /**
    * 同步诊断：手机推送有没有到达、数据来自推送还是缓存、
@@ -232,13 +216,10 @@ export default {
     this.diagLine2 = '数据 ' + src + ' ' + at + ' · rev' + s.rev
     this.diagLine3 = (s.lastShape || '-') + (s.lastError ? ' · ' + s.lastError : '')
     this.diagLine4 =
-      '平台 ' + (this._platform || '-') + ' · ' + (this._animEnabled ? '滑动动画' : '即时切换') +
-      ' · 滑动' + (this._swipeCount || 0) + '次'
+      '平台 ' + (this._platform || '-') + ' · 无动画 · 滑动' + (this._swipeCount || 0) + '次'
   },
-  buildLayer(vm, now, layerClass, key) {
+  buildDay(vm, now) {
     return {
-      key: key,
-      layerClass: layerClass,
       isToday: vm.isToday,
       weekday: vm.isToday ? '今天是' + vm.weekday : vm.weekday,
       dateText: vm.weekText ? vm.dateText + ' · ' + vm.weekText : vm.dateText,
@@ -268,38 +249,22 @@ export default {
     const now = new Date()
     const viewDate = this.getViewDate()
     const vm = schedule.buildHomeViewModel(viewDate, util, now)
-    const layer = this.buildLayer(vm, now, '', this.dayKey(viewDate))
-    // 滑动过程中不打断双层；只更新当前层数据
-    if (this.dayLayers.length === 1) {
-      this.dayLayers = [layer]
-    } else if (this.dayLayers.length >= 2) {
-      const next = this.dayLayers.slice()
-      next[1] = Object.assign({}, next[1], {
-        clockText: layer.clockText
-      })
-      this.dayLayers = next
-    } else {
-      this.dayLayers = [layer]
-    }
+    // 单层常驻：只替换这一个对象的内容，既不改节点结构也不做动画
+    this.day = this.buildDay(vm, now)
   },
   /**
-   * 读平台版本（Vela）决定滑动动画是否可用。
-   * 小米手环 9 Pro 是 Vela 3.6：整页 transform 动画会把内容层留在屏幕外，
-   * 表现为「滑一下变黑屏且点不动」（Tab 栏还活着，因为它是 stack 外面的兄弟节点）。
-   * 这类引擎上一律即时切换，不做任何动画；Vela 4.0+ 才启用滑动动画。
+   * 读平台版本（Vela）与 APILevel，仅用于关于页的「同步诊断」展示。
+   * 小米手环 9 Pro 是 Vela 3.6，平台信息能帮助定位机型差异。
    */
   probePlatform() {
-    this._animEnabled = false
+    this._platform = '-'
     this._platform = '-'
     try {
       device.getInfo({
         success: (info) => {
           const name = (info && (info.platformVersionName || info.osVersionName)) || ''
-          const matched = /(\d+)/.exec(String(name))
-          const major = matched ? parseInt(matched[1], 10) : NaN
-          this._animEnabled = !isNaN(major) && major >= 4
           this._platform = name + (info && info.APILevel != null ? ' / api' + info.APILevel : '')
-          console.log('[page] platform=' + name + ' anim=' + this._animEnabled)
+          console.log('[page] platform=' + name)
           this.refreshDiagnostics()
         },
         fail: () => {
@@ -311,60 +276,17 @@ export default {
     }
   },
   /**
-   * 切日。Vela 3.x 等老引擎走即时切换（无动画无位移，绝不会黑屏）；
-   * 新引擎保留出入场动画，快速连滑时合并位移，保证同一时刻只存在一组出入场层。
+   * 切日：只换数据，不重建节点、不做动画。
+   * Vela 3.6（小米手环 9 Pro）上重建带 scroll 的层节点会整屏黑且点不动，
+   * 因此这里彻底去掉双层与出入场动画 —— 兼容优先。
    */
   goDay(delta) {
-    if (!this._animEnabled) {
-      this._swipeCount = (this._swipeCount || 0) + 1
-      this.viewDateTs = util.addDays(this.getViewDate(), delta).getTime()
-      this.refreshHome()
-      this.refreshDiagnostics()
-      return
-    }
-    this._pendingDelta = (this._pendingDelta || 0) + delta
-    if (this._slideTimer) return
-    this._runSlide()
-  },
-  _runSlide() {
-    const delta = this._pendingDelta || 0
-    this._pendingDelta = 0
-    if (!delta) return
     this._swipeCount = (this._swipeCount || 0) + 1
-
-    const now = new Date()
-    const oldDate = this.getViewDate()
-    const oldVm = schedule.buildHomeViewModel(oldDate, util, now)
-    const newDate = util.addDays(oldDate, delta)
-    const newVm = schedule.buildHomeViewModel(newDate, util, now)
-
-    // 净位移方向决定滑入边：向后→新页从右侧进，向前→从左侧进
-    const goingNext = delta > 0
-    const outClass = goingNext ? 'layer-out-left' : 'layer-out-right'
-    const inClass = goingNext ? 'layer-in-right' : 'layer-in-left'
-
-    this.dayLayers = [
-      this.buildLayer(oldVm, now, outClass, this.dayKey(oldDate)),
-      this.buildLayer(newVm, now, inClass, this.dayKey(newDate))
-    ]
-    this.viewDateTs = newDate.getTime()
-
-    this._slideTimer = setTimeout(() => {
-      this._slideTimer = null
-      const cur = schedule.buildHomeViewModel(this.getViewDate(), util, new Date())
-      // key 与入场层相同 → 复用的正是那个「动画终值就在 0 位」的节点，
-      // 离场层被销毁。老引擎即使不复位动画，屏幕上也只会剩下停在 0 位的这一层。
-      this.dayLayers = [this.buildLayer(cur, new Date(), '', this.dayKey(this.getViewDate()))]
-      // 动画期间攒下的滑动，合并后再播下一段
-      if (this._pendingDelta) this._runSlide()
-    }, SLIDE_MS)
+    this.viewDateTs = util.addDays(this.getViewDate(), delta).getTime()
+    this.refreshHome()
+    this.refreshDiagnostics()
   },
   onBackToday() {
-    this._pendingDelta = 0
-    if (this._slideTimer) {
-      clearTimeout(this._slideTimer)
-      this._slideTimer = null
-    }
     this.viewDateTs = 0
     this.refreshHome()
   },
@@ -460,105 +382,8 @@ export default {
     background-color: transparent;
   }
 
-  /* 整页横滑舞台：裁切出屏内容 */
-  .day-stage {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    flex-direction: column;
-  }
-
-  /* 不再用 fill-mode 把离场层「按」在屏幕外（该属性不在 Vela 动画样式表里，
-     老引擎行为不确定，正是黑屏的起因）：
-     1) 每层自带不透明底色，最后渲染的入场层必然完整盖住先渲染的离场层；
-     2) 显式写出静止态 transform，动画结束后落点在任何引擎上都是确定的 0 位。 */
-  .day-layer {
-    width: 100%;
-    height: 100%;
-    background-color: #000000;
-  }
-
-  /* 出场：向左/右整页滑出 */
-  .layer-out-left {
-    position: absolute;
-    left: 0px;
-    top: 0px;
-    width: 100%;
-    height: 100%;
-    animation-name: layerOutLeft;
-    animation-duration: 280ms;
-    animation-timing-function: ease-out;
-  }
-
-  .layer-out-right {
-    position: absolute;
-    left: 0px;
-    top: 0px;
-    width: 100%;
-    height: 100%;
-    animation-name: layerOutRight;
-    animation-duration: 280ms;
-    animation-timing-function: ease-out;
-  }
-
-  /* 入场：从右/左整页滑入 */
-  .layer-in-right {
-    position: absolute;
-    left: 0px;
-    top: 0px;
-    width: 100%;
-    height: 100%;
-    animation-name: layerInRight;
-    animation-duration: 280ms;
-    animation-timing-function: ease-out;
-  }
-
-  .layer-in-left {
-    position: absolute;
-    left: 0px;
-    top: 0px;
-    width: 100%;
-    height: 100%;
-    animation-name: layerInLeft;
-    animation-duration: 280ms;
-    animation-timing-function: ease-out;
-  }
-
-  @keyframes layerOutLeft {
-    0% {
-      transform: translateX(0px);
-    }
-    100% {
-      transform: translateX(-336px);
-    }
-  }
-
-  @keyframes layerOutRight {
-    0% {
-      transform: translateX(0px);
-    }
-    100% {
-      transform: translateX(336px);
-    }
-  }
-
-  @keyframes layerInRight {
-    0% {
-      transform: translateX(336px);
-    }
-    100% {
-      transform: translateX(0px);
-    }
-  }
-
-  @keyframes layerInLeft {
-    0% {
-      transform: translateX(-336px);
-    }
-    100% {
-      transform: translateX(0px);
-    }
-  }
+  /* 切日不再有整页滑动动画，也没有双层与裁切舞台（Vela 3.6 上重建 scroll 层会黑屏）。
+     现在只有一个常驻的 .body(滚动容器) + .screen(内容)，切日只更新数据绑定。 */
 
   .body {
     width: 100%;
