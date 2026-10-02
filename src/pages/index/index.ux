@@ -68,11 +68,12 @@
         </div>
       </div>
 
-      <!-- 同步诊断：手机推送是否到达、数据来源与手环自己算出的周次 -->
+      <!-- 同步诊断：手机推送是否到达、数据来源、周次与动画模式 -->
       <div class="card">
         <text class="app-ver">{{diagLine1}}</text>
         <text class="app-ver">{{diagLine2}}</text>
         <text class="app-ver">{{diagLine3}}</text>
+        <text class="app-ver">{{diagLine4}}</text>
       </div>
 
       <text class="section-label">开发人员名单</text>
@@ -152,6 +153,7 @@
 import sync from '../../common/sync'
 import schedule from '../../common/schedule'
 import util from '../../common/util'
+import device from '@system.device'
 
 /** CSS 出入场动画时长（ms），必须与 .layer-* 的 animation-duration 一致 */
 const ANIM_MS = 280
@@ -172,7 +174,8 @@ export default {
     /* 同步诊断（关于页展示） */
     diagLine1: '',
     diagLine2: '',
-    diagLine3: ''
+    diagLine3: '',
+    diagLine4: ''
   },
   onInit() {
     this.unsubscribe = sync.onScheduleChange(() => {
@@ -180,6 +183,7 @@ export default {
       this.refreshDiagnostics()
     })
     sync.init()
+    this.probePlatform()
     this.refreshHome()
     this.refreshDiagnostics()
     this._refreshTimer = setInterval(() => {
@@ -227,6 +231,9 @@ export default {
       '周次 ' + (schedule.weekTextFor(new Date()) || '-') + ' · ' + (s.ready ? '手机已连接' : '手机未连接')
     this.diagLine2 = '数据 ' + src + ' ' + at + ' · rev' + s.rev
     this.diagLine3 = (s.lastShape || '-') + (s.lastError ? ' · ' + s.lastError : '')
+    this.diagLine4 =
+      '平台 ' + (this._platform || '-') + ' · ' + (this._animEnabled ? '滑动动画' : '即时切换') +
+      ' · 滑动' + (this._swipeCount || 0) + '次'
   },
   buildLayer(vm, now, layerClass, key) {
     return {
@@ -276,10 +283,45 @@ export default {
     }
   },
   /**
-   * 切日。快速连滑时合并位移，保证同一时刻只存在一组出入场层，
-   * 避免多层动画叠在一起乱飞。
+   * 读平台版本（Vela）决定滑动动画是否可用。
+   * 小米手环 9 Pro 是 Vela 3.6：整页 transform 动画会把内容层留在屏幕外，
+   * 表现为「滑一下变黑屏且点不动」（Tab 栏还活着，因为它是 stack 外面的兄弟节点）。
+   * 这类引擎上一律即时切换，不做任何动画；Vela 4.0+ 才启用滑动动画。
+   */
+  probePlatform() {
+    this._animEnabled = false
+    this._platform = '-'
+    try {
+      device.getInfo({
+        success: (info) => {
+          const name = (info && (info.platformVersionName || info.osVersionName)) || ''
+          const matched = /(\d+)/.exec(String(name))
+          const major = matched ? parseInt(matched[1], 10) : NaN
+          this._animEnabled = !isNaN(major) && major >= 4
+          this._platform = name + (info && info.APILevel != null ? ' / api' + info.APILevel : '')
+          console.log('[page] platform=' + name + ' anim=' + this._animEnabled)
+          this.refreshDiagnostics()
+        },
+        fail: () => {
+          this.refreshDiagnostics()
+        }
+      })
+    } catch (e) {
+      console.log('[page] device.getInfo fail', e)
+    }
+  },
+  /**
+   * 切日。Vela 3.x 等老引擎走即时切换（无动画无位移，绝不会黑屏）；
+   * 新引擎保留出入场动画，快速连滑时合并位移，保证同一时刻只存在一组出入场层。
    */
   goDay(delta) {
+    if (!this._animEnabled) {
+      this._swipeCount = (this._swipeCount || 0) + 1
+      this.viewDateTs = util.addDays(this.getViewDate(), delta).getTime()
+      this.refreshHome()
+      this.refreshDiagnostics()
+      return
+    }
     this._pendingDelta = (this._pendingDelta || 0) + delta
     if (this._slideTimer) return
     this._runSlide()
@@ -288,6 +330,7 @@ export default {
     const delta = this._pendingDelta || 0
     this._pendingDelta = 0
     if (!delta) return
+    this._swipeCount = (this._swipeCount || 0) + 1
 
     const now = new Date()
     const oldDate = this.getViewDate()
@@ -433,7 +476,6 @@ export default {
     width: 100%;
     height: 100%;
     background-color: #000000;
-    transform: translateX(0px);
   }
 
   /* 出场：向左/右整页滑出 */
