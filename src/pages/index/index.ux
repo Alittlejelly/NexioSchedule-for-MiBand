@@ -26,17 +26,17 @@
         </div>
 
         <block for="{{(groupIndex, group) in day.groups}}">
-          <div class="tag-wrap">
-            <text class="tag">{{group.label}}</text>
-          </div>
-          <div class="card" for="{{(courseIndex, course) in group.courses}}">
-            <div class="row">
-              <text class="strong">{{course.name}}</text>
-              <text class="blue">{{course.timeText}}</text>
-            </div>
-            <div class="row">
-              <text class="meta">{{course.meta}}</text>
-              <text class="meta">{{course.status}}</text>
+          <div class="group-card">
+            <text class="group-tag">{{group.label}}</text>
+            <div class="course-row" for="{{(courseIndex, course) in group.courses}}">
+              <div class="row">
+                <text class="strong">{{course.name}}</text>
+                <text class="blue">{{course.timeText}}</text>
+              </div>
+              <div class="row">
+                <text class="meta">{{course.meta}}</text>
+                <text class="meta">{{course.status}}</text>
+              </div>
             </div>
           </div>
         </block>
@@ -620,6 +620,31 @@ export default {
     padding-right: 10px;
     padding-bottom: 4px;
     padding-left: 10px;
+  }
+
+  /* 时段分组卡片：每组一张圆角卡片，组内每节课一行 */
+  .group-card {
+    width: 100%;
+    padding-top: 10px;
+    padding-right: 12px;
+    padding-bottom: 10px;
+    padding-left: 12px;
+    background-color: #242424;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+
+  .group-tag {
+    width: 100%;
+    font-size: 14px;
+    font-weight: bold;
+    color: #d1d1d6;
+    margin-bottom: 6px;
+  }
+
+  .course-row {
+    width: 100%;
+    padding-top: 8px;
   }
 
   /* 仅增加可滚高度以触发回弹，不改变关于页内部布局 */
