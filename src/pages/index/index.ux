@@ -788,15 +788,17 @@ export default {
   }
 
   /* 悬浮 Tab：原样紧凑胶囊，宽高各 +10px 等比放大，不横向拉伸 */
+  /* 悬浮 Tab：紧凑化——容器背景收窄/变矮/小圆角，图标(43)本身不变。
+     .tab-btn 仍 65 高（透明溢出 pill 之外，点击热区不减）。 */
   .tab-bar {
     position: absolute;
-    left: 95px;
-    right: 95px;
+    left: 105px;
+    right: 105px;
     bottom: 30px;
-    height: 65px;
+    height: 54px;
     flex-direction: row;
     background-color: #282828;
-    border-radius: 40px;
+    border-radius: 32px;
     align-items: center;
     overflow: visible;
     box-shadow: 0px 6px 18px rgba(0, 0, 0, 0.18);
@@ -812,24 +814,24 @@ export default {
     overflow: visible;
   }
 
-  /* 固定插槽，避免选中态被压成圆点 */
+  /* 固定插槽，避免选中态被压成圆点（紧凑化后收窄，图标居中） */
   .tab-slot {
-    width: 65px;
-    height: 55px;
+    width: 56px;
+    height: 48px;
     margin-top: -1px;
     overflow: visible;
   }
 
   /* 选中：比外框小一圈的嵌套胶囊 */
   .tab-hl {
-    width: 65px;
-    height: 55px;
-    min-width: 65px;
-    min-height: 55px;
+    width: 56px;
+    height: 48px;
+    min-width: 56px;
+    min-height: 48px;
     position: absolute;
     left: 0px;
     top: 0px;
-    border-radius: 40px;
+    border-radius: 32px;
     background-color: #353535;
     flex-direction: column;
     justify-content: center;
@@ -839,14 +841,14 @@ export default {
 
   /* 未选中：同尺寸透明占位，避免图标跳动 */
   .tab-hl-off {
-    width: 65px;
-    height: 55px;
-    min-width: 65px;
-    min-height: 55px;
+    width: 56px;
+    height: 48px;
+    min-width: 56px;
+    min-height: 48px;
     position: absolute;
     left: 0px;
     top: 0px;
-    border-radius: 40px;
+    border-radius: 32px;
     flex-direction: column;
     justify-content: center;
     align-items: center;
