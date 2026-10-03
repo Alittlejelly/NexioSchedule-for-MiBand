@@ -2,8 +2,8 @@
   "package": "com.haooz.chedule",
   "name": "nexio课程表",
   "icon": "/common/icon.png",
-  "versionName": "1.1.1",
-  "versionCode": 31,
+  "versionName": "1.1.2",
+  "versionCode": 32,
   "minPlatformVersion": 1200,
   "simulationVersion": "default",
   "deviceTypeList": ["watch"],
@@ -13,6 +13,7 @@
     { "name": "system.configuration" },
     { "name": "system.storage" },
     { "name": "system.interconnect" },
+    { "name": "system.prompt" },
     { "name": "system.device" }
   ],
   "config": {

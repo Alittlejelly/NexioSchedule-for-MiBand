@@ -5,6 +5,12 @@
  * 主通道：@system.interconnect（小米穿戴 MessageApi ↔ 手表 @system.interconnect）
  * 本地缓存：@system.storage —— 冷启动 / 断开手机后仍可查看上次同步的课表
  *
+ * 手表端覆盖策略（不改手机端也能看更多天的关键）：
+ *   1. 按日期直推（v3，手机只推「今天 ±14 天」窗口）→ **合并累积**，不替换旧日期；
+ *   2. 整周分桶（v1/v2，只含推送那一刻的当前教学周）→ 按周**归档**，历史周不被顶掉；
+ *   3. 整表（version=4，手机端 WatchPayload.buildFullJson）→ 手环按周一起算公式自行推算任意一周。
+ *   查看某天的优先级：按日期条目 > 周归档 > 整表推算 > 最新周快照。
+ *
  * ---------------------------------------------------------------------------
  * 协议（以手机端 WatchPayload.buildWeekJson 为准）
  * ---------------------------------------------------------------------------
@@ -32,22 +38,27 @@
  * 不会出现「周一~周六整体错位一天」。version 只用于日志诊断。
  * holidays[].followWeekday 为手机域 1-7（1=周一 .. 7=周日），0 与 7 都按周日容错处理。
  *
- * 手表端主动要数据（手机端 WearableScheduleSync 收到 request 就整周推送，
- * 它只校验 protocol / action，不校验 version）：
+ * 手表端主动要数据（**手动接口**，正常被动模式下不发送；手机端
+ * WearableScheduleSync 收到 request 就整包推送，它只校验 protocol / action）：
  * { "protocol": "nexio.schedule", "version": 2, "action": "request", "reason": "app-open" }
+ *
+ * 读取频率：**轮询 + 事件触发**拉取 —— 启动、onShow（数据过期/通道未就绪）、
+ * 通道重连、缺按日期数据时立即拉取，另有每 POLL_INTERVAL_MS 一次的定时轮询兜底；
+ * 手机端点「推送到手环」仍是主要数据入口（轮询拉回的也是同一个整表包）。
  *
  * 注意：interconnect 要求手表 rpk 与手机 App 包名、签名一致。
  */
 
 import interconnect from '@system.interconnect'
 import storage from '@system.storage'
+import prompt from '@system.prompt'
 import schedule from './schedule'
 
 const PROTOCOL = 'nexio.schedule'
 /** 向手机端发请求时带的协议版本（与最新手机端对齐；解析侧对 1/2/未知版本都兼容） */
 const PROTOCOL_VERSION = 2
 /** 支持的 wire 版本（仅用于日志：键的编号域由键自身决定，见 weekKeyToInternal） */
-const SUPPORTED_WIRE_VERSIONS = [1, 2]
+const SUPPORTED_WIRE_VERSIONS = [1, 2, 3, 4]
 /**
  * 本地缓存的内部版本号：缓存里的 week 键已经归一化成手表域 0-6，
  * 读回时命中它就不再做 wire 换算（缓存是本模块自己写的，格式由本文件保证）。
@@ -67,6 +78,8 @@ const ACTION = {
 const PEER_PACKAGE = 'com.haooz.chedule'
 
 const listeners = []
+/** 页面级 toast 监听（连接提示等 UI 事件），见 onToast */
+const toastListeners = []
 let connect = null
 let ready = false
 let lastError = null
@@ -75,11 +88,15 @@ let cachedQuote = ''
 let appliedRev = 0
 /** 主动请求同步的最小间隔，避免 onShow/重试把通道刷爆 */
 const REQUEST_MIN_GAP_MS = 15000
-/** 本地数据超过这个时间就认为过期，页面 onShow 时主动向手机要一次 */
-const STALE_MS = 5 * 60 * 1000
-/** 请求后多久没收到数据就重试，以及最多重试几次 */
+/** 手动 requestSync 后多久没收到数据就重试，以及最多重试几次（仅手动路径使用） */
 const RETRY_DELAY_MS = 4000
 const MAX_RETRY = 2
+/** 本地数据超过这个时间就认为过期，页面 onShow 时主动向手机要一次 */
+const STALE_MS = 5 * 60 * 1000
+/** 「按日期直推」数据的请求节流（v2/v3 用户兜底补数据用） */
+const NEED_DATED_MIN_GAP_MS = 60000
+/** 定时轮询间隔：整表包不大，5 分钟一次足以自愈，又不会明显耗电 */
+const POLL_INTERVAL_MS = 5 * 60 * 1000
 
 /** 本地缓存时间戳（0 表示当前进程还没有可用缓存） */
 let cachedAt = 0
@@ -91,6 +108,36 @@ let lastAt = 0
 let lastRequestAt = 0
 let retryTimer = null
 let retryCount = 0
+/** 定时轮询句柄 */
+let pollTimer = null
+/** 本次连接是否已弹过「已连接手机」toast（断开后重置，重连才再弹） */
+let connectNotified = false
+
+/** 通道接通时提示一次「已连接手机」；重复触发（onopen 与 getReadyState 都报告就绪）不重复弹 */
+function notifyConnected() {
+  if (connectNotified) return
+  connectNotified = true
+  let delivered = false
+  for (let i = 0; i < toastListeners.length; i++) {
+    try {
+      toastListeners[i]('已连接手机')
+      delivered = true
+    } catch (e) {
+      console.log('[sync] toast listener error', e)
+    }
+  }
+  // 页面还没挂监听（理论上不会发生）时退回系统 toast（居中，仅兜底）
+  if (!delivered) {
+    try {
+      prompt.showToast({ message: '已连接手机', duration: 2000 })
+    } catch (e) {
+      console.log('[sync] showToast fail', e)
+    }
+  }
+}
+/** 缺「按日期直推」数据的请求节流与次数（诊断用） */
+let lastNeedDatedAt = 0
+let needDatedCount = 0
 
 function notify() {
   for (let i = 0; i < listeners.length; i++) {
@@ -186,10 +233,12 @@ function normalizeCourse(item, index, dayKey) {
   const endTime = item.endTime || item.end || ''
   const startSection = num(item.startSection)
   const endSection = num(item.endSection)
-  // 允许「只有节次、没有具体时间」的 v2 下发（时间由 times 表解析）
-  if (!startTime && !endTime && !startSection && !endSection) return null
-
   const periods = item.periods || item.period || item.sectionText || ''
+  // 有名字就是真课：手机端个别课解析不出时间（CourseTimeResolver 返回空）时
+  // startTime/endTime 都可能是空串，过去在这里被整条丢弃 —— 表现为「偶尔缺课」。
+  // 只要还带着节次文案（periods）就保留，界面至少显示课名/教室/节次。
+  if (!startTime && !endTime && !startSection && !endSection && !periods) return null
+
   const location = item.location || item.place || item.classroom || ''
   const teacher = item.teacher || item.instructor || ''
   const section = schedule.resolveSection(item.section, startTime)
@@ -258,7 +307,8 @@ function normalizePayload(raw) {
   /** 诊断用：手机原始 payload 里出现了哪些已知字段（v2 改结构时靠它一眼看出来） */
   const KNOWN_FIELDS = [
     'protocol', 'version', 'action', 'data', 'courses', 'settings', 'times', 'holidays',
-    'week', 'days', 'teachingWeek', 'current_week', 'class_start_time', 'total_weeks', 'schedule_name'
+    'week', 'days', 'teachingWeek', 'current_week', 'class_start_time', 'total_weeks', 'schedule_name',
+    'archive'
   ]
   const present = []
   const unknownNames = []
@@ -276,6 +326,8 @@ function normalizePayload(raw) {
   const rawFields = present.concat(unknownNames).join(',') + (unknownMore ? ',…' : '')
   // v2 可能把内容包一层 data 对象：{protocol, version, action, data:{settings, times, courses, ...}}
   const msg = isPlainObject(parsed.data) ? Object.assign({}, parsed, parsed.data) : parsed
+  // 周归档只出现在本模块写的缓存里（手机 payload 不会有），原样带回给 applyPayload 恢复
+  const archiveList = Array.isArray(msg.archive) ? msg.archive : null
   if (msg.protocol && msg.protocol !== PROTOCOL) {
     return { ok: false, error: 'protocol mismatch: ' + msg.protocol }
   }
@@ -302,6 +354,7 @@ function normalizePayload(raw) {
         sentAt: msg.sentAt || Date.now(),
         savedAt: msg.savedAt || 0,
         quote: msg.quote || '',
+        archive: archiveList,
         holidays: holidayList,
         week: week
       }
@@ -332,6 +385,7 @@ function normalizePayload(raw) {
         sentAt: msg.sentAt || Date.now(),
         savedAt: msg.savedAt || 0,
         quote: msg.quote || '',
+        archive: archiveList,
         scheduleName: String(msg.schedule_name || msg.scheduleName || ''),
         holidays: holidayList,
         mode: 'full',
@@ -367,6 +421,7 @@ function normalizePayload(raw) {
         sentAt: msg.sentAt || Date.now(),
         savedAt: msg.savedAt || 0,
         quote: msg.quote || '',
+        archive: archiveList,
         scheduleName: String(msg.schedule_name || msg.scheduleName || ''),
         holidays: holidayList,
         mode: 'dates',
@@ -451,6 +506,7 @@ function normalizePayload(raw) {
       sentAt: msg.sentAt || Date.now(),
       savedAt: msg.savedAt || 0,
       quote: msg.quote || '',
+      archive: archiveList,
       holidays: holidayList,
       mode: 'weeks',
       week: week,
@@ -489,6 +545,11 @@ function normalizeHolidays(list) {
   return out
 }
 
+/** 缓存里附带的历史周归档（空时为 undefined，JSON.stringify 自动忽略） */
+function cacheArchive() {
+  return schedule.archiveCount() ? schedule.getWeekArchive() : undefined
+}
+
 /** 写缓存：只保留有用字段并丢掉空白天，尽量小（storage 的 value 必须是字符串） */
 function compactForCache(payload) {
   if (payload.mode === 'full') {
@@ -501,6 +562,7 @@ function compactForCache(payload) {
       scheduleName: payload.scheduleName || '',
       holidays: payload.holidays || [],
       mode: 'full',
+      archive: cacheArchive(),
       courses: payload.courses || [],
       settings: payload.settings || {},
       times: payload.times || {}
@@ -516,6 +578,7 @@ function compactForCache(payload) {
       scheduleName: payload.scheduleName || '',
       holidays: payload.holidays || [],
       mode: 'dates',
+      archive: cacheArchive(),
       days: payload.days || {},
       week: payload.week
     }
@@ -535,6 +598,7 @@ function compactForCache(payload) {
       quote: payload.quote || '',
       holidays: payload.holidays || [],
       mode: 'weeks',
+      archive: cacheArchive(),
       week: w,
       settings: payload.settings || {},
       times: payload.times || {}
@@ -551,13 +615,41 @@ function compactForCache(payload) {
     action: payload.action || ACTION.REPLACE,
     savedAt: payload.savedAt || Date.now(),
     quote: payload.quote || '',
+    archive: cacheArchive(),
     holidays: payload.holidays || [],
     week: week
   }
 }
 
+/**
+ * 存缓存时优先存「按日期直推」的数据：
+ * 整周快照只代表手机推送那一刻的那一周，用它覆盖缓存会让冷启动后
+ * 其它周（单双周、选周）又显示成那一周。
+ * 按日期数据是合并语义（dateCourses 累积了各次推送的窗口），
+ * 所以只要内存里有累积数据，无论本次 payload 是什么形态都用它写缓存。
+ */
+function toCachePayload(payload) {
+  const dated = schedule.getDateCache()
+  if (dated) {
+    return {
+      protocol: PROTOCOL,
+      version: CACHE_VERSION,
+      action: ACTION.REPLACE,
+      savedAt: payload.savedAt || Date.now(),
+      quote: payload.quote || '',
+      scheduleName: payload.scheduleName || '',
+      holidays: payload.holidays || [],
+      mode: 'dates',
+      archive: cacheArchive(),
+      days: dated.days,
+      week: dated.week
+    }
+  }
+  return payload
+}
+
 function persist(payload, done) {
-  const value = JSON.stringify(compactForCache(payload))
+  const value = JSON.stringify(compactForCache(toCachePayload(payload)))
   // 文档：value 为空字符串等于删除该项，所以空内容不写
   if (!value || value === '{}') {
     if (done) done(null)
@@ -587,6 +679,8 @@ function applyPayload(payload) {
   if (payload.action === ACTION.CLEAR) {
     schedule.replaceWeek({})
     schedule.clearWeekState()
+    schedule.clearDateState()
+    schedule.clearWeekArchive()
     schedule.setHolidays([])
     schedule.setQuote(cachedQuote)
     return
@@ -624,6 +718,10 @@ function applyPayload(payload) {
     }
   }
   schedule.setHolidays(payload.holidays || [])
+  // 恢复缓存里带来的历史周归档（仅缓存路径会有该字段）
+  if (payload.archive && payload.archive.length) {
+    schedule.restoreWeekArchive(payload.archive)
+  }
   schedule.setQuote(cachedQuote)
 }
 
@@ -668,24 +766,32 @@ function bindConnect() {
     ready = true
     lastError = null
     console.log('[sync] interconnect open, reconnected=', data && data.isReconnected)
+    notifyConnected()
     requestSync('reconnect')
+    startPolling()
   }
   connect.onclose = function (data) {
     ready = false
+    connectNotified = false
     lastError = (data && data.data) || 'closed'
     console.log('[sync] interconnect closed', lastError)
+    // 手机断连后停止轮询，避免无效空转；重连时恢复
+    stopPolling()
   }
   connect.onerror = function (data) {
     ready = false
+    connectNotified = false
     lastError = (data && (data.data || data.code)) || 'error'
     console.log('[sync] interconnect error', lastError)
+    stopPolling()
   }
 }
 
 /**
- * 向手机端请求最新课表。
- * 手机端 WearableScheduleSync 收到 action=request 会立刻整包推送；
- * 若此时手机的监听器还没绑定好，请求会石沉大海 —— 所以这里带节流 + 自动重试。
+ * 向手机端请求最新课表（**手动接口**，正常流程不调用）。
+ * 手环是纯被动接收端：只有手机端用户点「推送到手环」（或手机端课表变更自动推送）
+ * 才会有数据下来。保留此函数供将来加「手动刷新」入口使用；
+ * 手机端 WearableScheduleSync 收到 action=request 会立刻整包推送，带节流 + 重试。
  */
 function requestSync(reason, force) {
   if (!connect) return
@@ -737,23 +843,43 @@ function scheduleRetry() {
 }
 
 /**
+ * 主动要一次「按日期直推」数据（v2/v3 用户的兜底补数据；v4 整表模式下
+ * hasFullSemester 为真，调用方会自动跳过）。带节流避免把通道刷爆。
+ * @returns {boolean} 是否真的发出了请求
+ */
+function requestDatedData(reason) {
+  if (!connect) return false
+  const now = Date.now()
+  if (now - lastNeedDatedAt < NEED_DATED_MIN_GAP_MS) return false
+  lastNeedDatedAt = now
+  needDatedCount += 1
+  console.log('[sync] 缺少按日期数据，向手机请求 (' + (reason || 'need-dates') + ')')
+  requestSync(reason || 'need-dates', true)
+  return true
+}
+
+/**
  * 页面 onShow 调用：数据过期（或从未同步过）就主动向手机要一次。
- * 解决「手机上点推送手表没反应」里手表这一侧的问题：
- * 打开应用/从表盘回到应用时不再被动等，而是主动拉一次。
+ * 打开应用/从表盘回到应用时不再被动等推送；v2 用户缺按日期数据时也会催一次。
  */
 function ensureFresh(reason) {
   const tag = reason || 'ensure-fresh'
+  let askedForDates = false
+  // 整表模式（含学期起始日）下手环能推算学期内任意一天，不必再向手机要按日期数据
+  if (!schedule.hasDateFor(new Date()) && !schedule.hasFullSemester()) {
+    askedForDates = requestDatedData(tag)
+  }
   if (!lastAt || Date.now() - lastAt > STALE_MS) {
     retryCount = 0
     requestSync(tag, true)
     return true
   }
   // 数据还新，但通道没连上时也试一次（可能刚开机/刚重连）
-  if (!ready) {
+  if (!ready && !schedule.hasFullSemester()) {
     requestSync(tag)
     return true
   }
-  return false
+  return askedForDates
 }
 
 /**
@@ -799,7 +925,12 @@ function init() {
     connect.getReadyState({
       success: function (data) {
         ready = !!(data && data.status === 1)
-        if (ready) requestSync('app-open')
+        if (ready) {
+          // 应用启动时通道已就绪：onopen 可能不会再触发，这里直接提示
+          notifyConnected()
+          requestSync('app-open')
+          startPolling()
+        }
       },
       fail: function (data, code) {
         lastError = 'getReadyState fail ' + code
@@ -811,7 +942,24 @@ function init() {
   }
 }
 
+/** 定时轮询：兜底自愈（手机端在身边时，错过的推送最迟一个周期被补上） */
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(function () {
+    // 手机不在身边时 request 会失败，重试机制会兜住；节流在 requestSync 内部
+    requestSync('poll')
+  }, POLL_INTERVAL_MS)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
 function teardown() {
+  stopPolling()
   if (retryTimer) {
     clearTimeout(retryTimer)
     retryTimer = null
@@ -844,6 +992,21 @@ function onScheduleChange(fn) {
   }
 }
 
+/**
+ * 页面订阅 toast 消息（如「已连接手机」），自行在页面内定位展示，
+ * 返回取消函数。系统 showToast 不可定位，只能作为无页面时的兜底。
+ */
+function onToast(fn) {
+  if (typeof fn !== 'function') {
+    return function () {}
+  }
+  toastListeners.push(fn)
+  return function () {
+    const idx = toastListeners.indexOf(fn)
+    if (idx >= 0) toastListeners.splice(idx, 1)
+  }
+}
+
 function getStatus() {
   return {
     ready: ready,
@@ -856,7 +1019,14 @@ function getStatus() {
     rev: appliedRev,
     lastSource: lastSource,
     lastShape: lastShape,
-    lastAt: lastAt
+    lastAt: lastAt,
+    /** 是否有「按日期直推」数据：false 表示手环只知道手机推来的那一周 */
+    hasDates: schedule.hasDateFor(new Date()),
+    /** 已累积的按日期天数 / 周归档数（诊断展示：覆盖面随使用增长） */
+    datedDays: schedule.datedCount(),
+    archiveWeeks: schedule.archiveCount(),
+    /** 整表模式是否完整（有课表 + 学期起始日），可渲染学期内任意一天 */
+    hasFull: schedule.hasFullSemester()
   }
 }
 
@@ -873,5 +1043,6 @@ export default {
   handlePhoneMessage: handlePhoneMessage,
   normalizePayload: normalizePayload,
   onScheduleChange: onScheduleChange,
+  onToast: onToast,
   getStatus: getStatus
 }

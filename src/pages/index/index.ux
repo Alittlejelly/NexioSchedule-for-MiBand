@@ -59,17 +59,15 @@
           <image class="app-icon" src="/common/about_icon.png"></image>
           <div class="app-text">
             <text class="app-name">nexio课程表</text>
-            <text class="app-ver">版本: v1.1.1</text>
+            <text class="app-ver">版本：v{{versionName}}</text>
           </div>
         </div>
       </div>
 
-      <!-- 同步诊断：手机推送是否到达、数据来源、周次与动画模式 -->
-      <div class="card">
-        <text class="app-ver">{{diagLine1}}</text>
-        <text class="app-ver">{{diagLine2}}</text>
-        <text class="app-ver">{{diagLine3}}</text>
-        <text class="app-ver">{{diagLine4}}</text>
+      <!-- 同步日志：连接状态 + 最近本地更新时间（对齐设计稿） -->
+      <div class="card diag-card">
+        <text class="diag-status">{{diagStatus}}</text>
+        <text class="diag-sub">{{diagUpdated}}</text>
       </div>
 
       <text class="section-label">开发人员名单</text>
@@ -86,7 +84,7 @@
           <image class="avatar" src="/common/photo2.png"></image>
           <div class="person-text">
             <text class="person-name">Sunlight</text>
-            <text class="person-role">nexio开发者</text>
+            <text class="person-role">原nexio开发者</text>
           </div>
         </div>
       </div>
@@ -142,6 +140,11 @@
         </div>
       </div>
     </div>
+
+    <!-- 连接提示：常驻节点只切换可见性（Vela 3.6 避免重建节点），位置在悬浮 Tab 上方 15px -->
+    <div class="toast" show="{{toastVisible}}">
+      <text class="toast-text">{{toastText}}</text>
+    </div>
   </div>
 </template>
 
@@ -164,16 +167,22 @@ export default {
     /* 当前展示的那一天（单层常驻，切日只换这个对象） */
     day: {},
     viewDateTs: 0,
-    /* 同步诊断（关于页展示） */
-    diagLine1: '',
-    diagLine2: '',
-    diagLine3: '',
-    diagLine4: ''
+    /* 与 manifest.json 的 versionName 保持一致 */
+    versionName: '1.1.2',
+    /* 同步日志（关于页展示） */
+    diagStatus: '',
+    diagUpdated: '',
+    /* 页面内连接提示（悬浮 Tab 上方） */
+    toastText: '',
+    toastVisible: false
   },
   onInit() {
     this.unsubscribe = sync.onScheduleChange(() => {
       this.refreshHome()
       this.refreshDiagnostics()
+    })
+    this.unsubscribeToast = sync.onToast((message) => {
+      this.showPageToast(message)
     })
     sync.init()
     this.probePlatform()
@@ -198,31 +207,46 @@ export default {
       this.unsubscribe()
       this.unsubscribe = null
     }
+    if (this.unsubscribeToast) {
+      this.unsubscribeToast()
+      this.unsubscribeToast = null
+    }
+    if (this._toastTimer) {
+      clearTimeout(this._toastTimer)
+      this._toastTimer = null
+    }
+  },
+  /**
+   * 页面内 toast：系统 showToast 固定居中且不可定位，
+   * 这里用常驻节点切换可见性，落在悬浮 Tab 上方 15px。
+   */
+  showPageToast(message) {
+    this.toastText = message
+    this.toastVisible = true
+    if (this._toastTimer) clearTimeout(this._toastTimer)
+    this._toastTimer = setTimeout(() => {
+      this.toastVisible = false
+      this._toastTimer = null
+    }, 2000)
   },
   getViewDate() {
     return this.viewDateTs ? new Date(this.viewDateTs) : new Date()
   },
   /**
-   * 同步诊断：手机推送有没有到达、数据来自推送还是缓存、
-   * 手环自己算出的周次是多少（整表模式下与手机一致）。
+   * 同步日志（关于页）：按设计稿只保留两行——
+   * 连接状态 + 最近一次本地更新时间。
    */
   refreshDiagnostics() {
     const s = sync.getStatus()
-    const at = s.lastAt ? util.formatClock(new Date(s.lastAt)) : '-'
-    const src =
-      s.lastSource === 'phone' ? '手机推送' : s.lastSource === 'cache' ? '本地缓存' : '无数据'
-    this.diagLine1 =
-      '周次 ' + (schedule.weekTextFor(new Date()) || '-') + ' · ' + (s.ready ? '手机已连接' : '手机未连接')
-    this.diagLine2 = '数据 ' + src + ' ' + at + ' · rev' + s.rev
-    this.diagLine3 = (s.lastShape || '-') + (s.lastError ? ' · ' + s.lastError : '')
-    this.diagLine4 =
-      '平台 ' + (this._platform || '-') + ' · 无动画 · 滑动' + (this._swipeCount || 0) + '次'
+    this.diagStatus = s.ready ? '已连接手机' : '手机未连接'
+    this.diagUpdated =
+      '最近一次本地更新时间：' + (s.lastAt ? util.formatClock(new Date(s.lastAt)) : '--:--')
   },
   buildDay(vm, now) {
     return {
       isToday: vm.isToday,
       weekday: vm.isToday ? '今天是' + vm.weekday : vm.weekday,
-      dateText: vm.weekText ? vm.dateText + ' · ' + vm.weekText : vm.dateText,
+      dateText: vm.dateText,
       clockText: util.formatClock(now),
       hasNext: vm.hasNext,
       nextLabel: vm.nextCourse ? vm.nextCourse.label : '下节课',
@@ -233,15 +257,15 @@ export default {
       showEmpty: !vm.hasCourses,
       showNeedPhone: vm.emptyState === 'need-phone',
       emptyTitle:
-        vm.emptyState === 'need-phone'
+      vm.emptyState === 'need-phone'
           ? '请连接手机'
           : vm.emptyState === 'holiday'
             ? vm.isToday
-              ? '今日是假期，好好休息吧'
-              : '当天是假期，好好休息吧'
+              ? '今天是假期，好好休息吧'
+              : '这天是假期'
             : vm.isToday
               ? '今日无课'
-              : '当天无课',
+              : '这天没有课程',
       emptySub: '打开Nexio课程表发送数据'
     }
   },
@@ -282,7 +306,17 @@ export default {
    */
   goDay(delta) {
     this._swipeCount = (this._swipeCount || 0) + 1
-    this.viewDateTs = util.addDays(this.getViewDate(), delta).getTime()
+    let target = util.addDays(this.getViewDate(), delta)
+    // v2 兼容（无整表数据）：14 天后的课表推不准（单双周无法判定），不再能滑动。
+    // 整表（version=4）模式下有完整学期数据，不限制。
+    if (!schedule.hasFullSemester()) {
+      const limit = util.addDays(new Date(), 14).getTime()
+      if (target.getTime() > limit) {
+        if (this.getViewDate().getTime() >= limit) return
+        target = new Date(limit)
+      }
+    }
+    this.viewDateTs = target.getTime()
     this.refreshHome()
     this.refreshDiagnostics()
   },
@@ -630,6 +664,20 @@ export default {
     color: #8e8e93;
   }
 
+  /* 同步日志卡：状态行大号白字，明细行灰色小字（对齐设计稿） */
+  .diag-status {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 6px;
+  }
+
+  .diag-sub {
+    font-size: 13px;
+    color: #8e8e93;
+    margin-bottom: 2px;
+  }
+
   .section-label {
     width: 100%;
     font-size: 14px;
@@ -765,6 +813,32 @@ export default {
     height: 43px;
     flex-shrink: 0;
     align-self: center;
+  }
+
+  /* ---------------- 连接提示 ----------------
+     悬浮 Tab：bottom 30 + 高 65 → toast 放在其上方 15px = bottom 110 */
+  .toast {
+    position: absolute;
+    left: 0px;
+    right: 0px;
+    bottom: 110px;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .toast-text {
+    max-width: 240px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffffff;
+    background-color: #242424;
+    border-radius: 20px;
+    padding-top: 10px;
+    padding-right: 20px;
+    padding-bottom: 10px;
+    padding-left: 20px;
+    text-align: center;
+    lines: 1;
   }
 
   /* ---------------- 关于页：打赏入口 ---------------- */
