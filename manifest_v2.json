@@ -39,6 +39,16 @@
       "version": "1.1.2",
       "file_name": "downloads/Nexio 课程表（小米手环 10、11）.rpk",
       "versionCode": 32
+    },
+    "xmb10nfc": {
+      "version": "1.1.2",
+      "file_name": "downloads/Nexio 课程表（小米手环 10、11）.rpk",
+      "versionCode": 32
+    },
+    "xmb11nfc": {
+      "version": "1.1.2",
+      "file_name": "downloads/Nexio 课程表（小米手环 10、11）.rpk",
+      "versionCode": 32
     }
   },
   "ext": {}
