@@ -748,8 +748,24 @@ function handlePhoneMessage(raw) {
     if (rev === appliedRev) notify()
   })
   notify()
+  sendAck(result.payload.sentAt)
   console.log('[sync] applied rev=' + rev + ' ' + lastShape)
   return { ok: true, shape: lastShape }
+}
+
+/** 收到整包并落地后回一个 ACK，手机端按 sentAt 匹配确认推送是否真正送达；
+ *  失败仅记日志，不影响落地结果。 */
+function sendAck(sentAt) {
+  if (!connect || !sentAt) return
+  connect.send({
+    data: { protocol: PROTOCOL, version: PROTOCOL_VERSION, action: ACTION.ACK, sentAt: sentAt },
+    success: function () {
+      console.log('[sync] ack sent for sentAt=' + sentAt)
+    },
+    fail: function (data, code) {
+      console.log('[sync] ack fail ' + code)
+    }
+  })
 }
 
 function handleMessageEvent(evt) {
@@ -767,23 +783,21 @@ function bindConnect() {
     lastError = null
     console.log('[sync] interconnect open, reconnected=', data && data.isReconnected)
     notifyConnected()
-    requestSync('reconnect')
-    startPolling()
+    // 纯被动：打开通道不主动 request、不轮询，只等手机推送
   }
   connect.onclose = function (data) {
     ready = false
     connectNotified = false
     lastError = (data && data.data) || 'closed'
     console.log('[sync] interconnect closed', lastError)
-    // 手机断连后停止轮询，避免无效空转；重连时恢复
-    stopPolling()
+    notify()
   }
   connect.onerror = function (data) {
     ready = false
     connectNotified = false
     lastError = (data && (data.data || data.code)) || 'error'
     console.log('[sync] interconnect error', lastError)
-    stopPolling()
+    notify()
   }
 }
 
@@ -812,12 +826,10 @@ function requestSync(reason, force) {
     data: body,
     success: function () {
       console.log('[sync] request sent (' + body.reason + ')')
-      scheduleRetry()
     },
     fail: function (data, code) {
       lastError = 'request fail ' + code
       console.log('[sync] request fail', lastError)
-      scheduleRetry()
     }
   })
 }
@@ -863,23 +875,9 @@ function requestDatedData(reason) {
  * 打开应用/从表盘回到应用时不再被动等推送；v2 用户缺按日期数据时也会催一次。
  */
 function ensureFresh(reason) {
-  const tag = reason || 'ensure-fresh'
-  let askedForDates = false
-  // 整表模式（含学期起始日）下手环能推算学期内任意一天，不必再向手机要按日期数据
-  if (!schedule.hasDateFor(new Date()) && !schedule.hasFullSemester()) {
-    askedForDates = requestDatedData(tag)
-  }
-  if (!lastAt || Date.now() - lastAt > STALE_MS) {
-    retryCount = 0
-    requestSync(tag, true)
-    return true
-  }
-  // 数据还新，但通道没连上时也试一次（可能刚开机/刚重连）
-  if (!ready && !schedule.hasFullSemester()) {
-    requestSync(tag)
-    return true
-  }
-  return askedForDates
+  // 纯被动：页面 onShow 不再主动向手机要数据，只刷本地时钟与显示；
+  // 课表由手机端推送。保留空函数以兼容页面调用。
+  return false
 }
 
 /**
@@ -928,8 +926,6 @@ function init() {
         if (ready) {
           // 应用启动时通道已就绪：onopen 可能不会再触发，这里直接提示
           notifyConnected()
-          requestSync('app-open')
-          startPolling()
         }
       },
       fail: function (data, code) {

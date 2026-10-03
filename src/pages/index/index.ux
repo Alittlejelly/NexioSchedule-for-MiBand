@@ -206,8 +206,7 @@ export default {
   onShow() {
     this.refreshHome()
     this.refreshDiagnostics()
-    // 数据过期就主动向手机拉一次，别等手机那边点推送
-    sync.ensureFresh('show')
+    // 纯被动：onShow 不主动向手机拉数据，只刷本地显示与时钟
   },
   onDestroy() {
     if (this._refreshTimer) {
