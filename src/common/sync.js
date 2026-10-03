@@ -748,8 +748,24 @@ function handlePhoneMessage(raw) {
     if (rev === appliedRev) notify()
   })
   notify()
+  sendAck(result.payload.sentAt)
   console.log('[sync] applied rev=' + rev + ' ' + lastShape)
   return { ok: true, shape: lastShape }
+}
+
+/** 收到整包并落地后回一个 ACK，手机端按 sentAt 匹配确认推送是否真正送达；
+ *  失败仅记日志，不影响落地结果。 */
+function sendAck(sentAt) {
+  if (!connect || !sentAt) return
+  connect.send({
+    data: { protocol: PROTOCOL, version: PROTOCOL_VERSION, action: ACTION.ACK, sentAt: sentAt },
+    success: function () {
+      console.log('[sync] ack sent for sentAt=' + sentAt)
+    },
+    fail: function (data, code) {
+      console.log('[sync] ack fail ' + code)
+    }
+  })
 }
 
 function handleMessageEvent(evt) {
@@ -777,6 +793,8 @@ function bindConnect() {
     console.log('[sync] interconnect closed', lastError)
     // 手机断连后停止轮询，避免无效空转；重连时恢复
     stopPolling()
+    // 断连即清掉挂起的重试链，避免重连后旧定时器误触发
+    clearRetry()
   }
   connect.onerror = function (data) {
     ready = false
@@ -784,7 +802,17 @@ function bindConnect() {
     lastError = (data && (data.data || data.code)) || 'error'
     console.log('[sync] interconnect error', lastError)
     stopPolling()
+    clearRetry()
   }
+}
+
+/** 清掉挂起的重试定时器并复位计数（断连/出错时调用） */
+function clearRetry() {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  retryCount = 0
 }
 
 /**
