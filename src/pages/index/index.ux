@@ -51,7 +51,7 @@
     </scroll>
 
     <scroll class="body" scroll-y="true" bounces="true" if="{{isAbout}}">
-    <div class="screen screen-about">
+    <div class="screen screen-about" onswipe="onAboutSwipe" ontouchstart="onTouchStart">
       <text class="page-title">应用信息</text>
 
       <div class="card">
@@ -156,6 +156,17 @@ import device from '@system.device'
 
 /** 左缘留给系统「右滑回桌面」的宽度，与 .sys-back-edge 保持一致 */
 const EDGE_W = 12
+
+/** 设计稿屏幕高：校验起手 y 越界时安全降级为全屏切日。
+ *  本基线为 336×480 屏取 480；其他屏按实际屏高调整。 */
+const SCREEN_H = 480
+
+/** 手势分区阈值：起手 y < 此值为「顶部日期区」（右滑退出应用 / 左滑进关于页），
+ *  y >= 此值为「课表区及以下」（左右滑切日期，用户主操作区）。
+ *  标定公式：取日期头区下缘（.screen padding-top + header-row 高 + date-text 高
+ *  + 各自 margin-bottom），再加一段缓冲。本基线 ≈28+46+58+18 ≈ 150；
+ *  其他屏按自身头区高度重算，勿照搬此值。 */
+const LOWER_ZONE_Y = 150
 
 export default {
   private: {
@@ -328,14 +339,23 @@ export default {
     if (!t) return null
     const x = t.clientX != null ? t.clientX : t.pageX != null ? t.pageX : t.x
     const y = t.clientY != null ? t.clientY : t.pageY != null ? t.pageY : t.y
-    if (x == null || y == null) return null
+    if (x == null || y == null || !isFinite(x) || !isFinite(y)) return null
     return { x: x, y: y }
   },
+  // 多来源兜底取起点：e.touches[0] → e.changedTouches[0] → 事件对象本身。
+  // 部分运行态 touchstart 时 touches 未填充，需逐来源尝试。
+  touchStartXY(e) {
+    if (!e) return null
+    return this.touchXY(e.touches && e.touches[0])
+      || this.touchXY(e.changedTouches && e.changedTouches[0])
+      || this.touchXY(e)
+  },
   onTouchStart(e) {
-    const t = e && e.touches && e.touches[0]
-    const p = this.touchXY(t)
+    const p = this.touchStartXY(e)
     // 左缘起手不切日，留给系统「右滑回桌面」
     this._touchFromEdge = !!(p && p.x <= EDGE_W)
+    // 记录起手 y；拿不到则为 NaN（onSwipe 据此安全降级）
+    this._touchStartY = p ? p.y : NaN
     // 同一手势只允许触发一次切日（出入场双层都会挂 handler）
     this._gestureSwiped = false
   },
@@ -348,10 +368,44 @@ export default {
     if (this._gestureSwiped) return
     this._gestureSwiped = true
     const dir = e && e.direction
-    if (dir === 'left') {
-      this.goDay(1)
-    } else if (dir === 'right') {
-      this.goDay(-1)
+    // 安全降级：起手 y 无效（NaN/非数/越界 0~SCREEN_H）时一律全屏切日，
+    // 绝不进入「退出/关于」分支——退出是最危险操作，坐标不可用时宁可失去分区。
+    const y = this._touchStartY
+    const yValid = typeof y === 'number' && isFinite(y) && y >= 0 && y <= SCREEN_H
+    if (!yValid) {
+      if (dir === 'left') {
+        this.goDay(1)
+      } else if (dir === 'right') {
+        this.goDay(-1)
+      }
+      return
+    }
+    if (y >= LOWER_ZONE_Y) {
+      // 课表区及以下：左右滑切日期
+      if (dir === 'left') {
+        this.goDay(1)
+      } else if (dir === 'right') {
+        this.goDay(-1)
+      }
+    } else {
+      // 顶部日期区：右滑退出应用（框架内置 $app.exit，零模块依赖），左滑进关于页
+      if (dir === 'right') {
+        this.$app.exit()
+      } else if (dir === 'left') {
+        this.onTabAbout()
+      }
+    }
+  },
+  /** 关于页：右滑回首页；左滑无动作。左缘起手让位系统返回。 */
+  onAboutSwipe(e) {
+    if (this._touchFromEdge) {
+      this._touchFromEdge = false
+      return
+    }
+    if (this._gestureSwiped) return
+    this._gestureSwiped = true
+    if (e && e.direction === 'right') {
+      this.onTabHome()
     }
   },
   onTabHome() {
