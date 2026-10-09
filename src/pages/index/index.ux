@@ -209,10 +209,13 @@ import device from '@system.device'
 
 /** 左缘留给系统「右滑回桌面」的宽度，与 .sys-back-edge 保持一致 */
 const EDGE_W = 12
-/** 底栏高度：底部渐隐带的 bottom 与对应 screen 的 padding-bottom 都要跟它对齐
- *  （padding-bottom = 底栏高 + 渐隐带高 20） */
-const BAR_H_HOME = 40
-const BAR_H_ABOUT = 53
+/** 底栏高度（首页翻日栏 40 / 关于页返回栏 53）：只作为 CSS padding-bottom 的
+ *  参照记录在注释里，代码里不再引用。 */
+/** 底部渐隐带的 bottom：与底栏高度解耦，单独控制渐隐带离屏幕底部的距离。
+ *  之前直接等于底栏高（40/53），渐隐带贴在翻日栏上缘；
+ *  调小 = 往下移（压向屏幕底部），调大 = 往上移。 */
+const BARMASK_BOTTOM_HOME = 35
+const BARMASK_BOTTOM_ABOUT = 45
 /** 设计稿主卡图标：正在上课 / 下节课 用纸飞机，快上课了 用喇叭 */
 const ICON_PLANE = '/common/hero_plane.png'
 const ICON_MEGAPHONE = '/common/hero_megaphone.png'
@@ -233,9 +236,9 @@ export default {
   private: {
     isHome: true,
     isAbout: false,
-    /* 底部渐隐带的 bottom 偏移：必须等于当前页面底栏的高度，
-       否则渐隐带会跟底栏脱开、中间露出一段完整内容（首页 40 / 关于页 55） */
-    barMaskBottom: BAR_H_HOME,
+    /* 底部渐隐带的 bottom 偏移：现在与底栏高度解耦（见 BARMASK_BOTTOM_*），
+       单独控制渐隐带离屏幕底部的距离。 */
+    barMaskBottom: BARMASK_BOTTOM_HOME,
     /* 「关于」这一支（打赏已并入关于页，不再单开页面） */
     aboutActive: false,
     /* 当前展示的那一天（单层常驻，切日只换这个对象） */
@@ -439,7 +442,6 @@ export default {
    */
   probePlatform() {
     this._platform = '-'
-    this._platform = '-'
     try {
       device.getInfo({
         success: (info) => {
@@ -515,14 +517,14 @@ export default {
     this.isHome = true
     this.isAbout = false
     this.aboutActive = false
-    this.barMaskBottom = BAR_H_HOME
+    this.barMaskBottom = BARMASK_BOTTOM_HOME
     this.refreshHome()
   },
   onTabAbout() {
     this.isHome = false
     this.isAbout = true
     this.aboutActive = true
-    this.barMaskBottom = BAR_H_ABOUT
+    this.barMaskBottom = BARMASK_BOTTOM_ABOUT
     // 进关于页时刷新一次连接状态（连接变化不一定伴随课表推送）
     this.refreshDiagnostics()
   }
@@ -954,13 +956,14 @@ export default {
      bottom 必须等于对应底栏的高度，否则渐隐带会与底栏脱开、中间露出完整内容。 */
   /* 底部渐隐带：一条节点，bottom 由 style 绑定跟随当前页面（见模板注释）。
      首页翻日栏 40px -> bottom 40；关于页返回栏 55px -> bottom 55。
-     改底栏高度时同步改脚本里的 BAR_H_HOME / BAR_H_ABOUT。 */
+     改底栏高度时同步改脚本里的 BARMASK_BOTTOM_HOME / BARMASK_BOTTOM_ABOUT。 */
   .barmask-img {
     position: absolute;
     left: 0px;
     right: 0px;
+    bottom: 20px;
     width: 100%;
-    height: 20px;
+    height: 30px;
   }
 
   /* 固定头部下缘的渐隐带：紧贴 95px 头部下方（top: 95px，必须与 .hd 高度一致），
@@ -972,7 +975,7 @@ export default {
     right: 0px;
     top: 95px;
     width: 100%;
-    height: 10px;
+    height: 20px;
   }
 
   /* 关于页：底部单颗返回药丸。
@@ -1030,7 +1033,7 @@ export default {
     font-weight: bold;
     color: #ffffff;
     lines: 1;
-    margin-left: 24px;
+    margin-left: 7px;
   }
 
   .ab-clock {

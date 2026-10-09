@@ -72,7 +72,12 @@ const PROTOCOL = 'nexio.schedule'
 const PROTOCOL_VERSION = 4
 /** 本地缓存的内部版本号（缓存由本模块写入，格式自保证） */
 const CACHE_VERSION = 0
-const STORAGE_KEY = 'nexio.schedule.payload'
+/**
+ * 存储键升过一次代（v1 → v2）：内置调试课表删除前是走真实同步链路注入的，
+ * 会被 persist() 写进 storage；只删代码不清缓存的话，冷启动仍会把旧课表恢复
+ * 出来。换键让旧缓存永久孤儿化，一次解决所有设备。
+ */
+const STORAGE_KEY = 'nexio.schedule.payload.v2'
 
 const ACTION = {
   REPLACE: 'replace',
