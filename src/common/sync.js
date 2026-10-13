@@ -110,6 +110,13 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000
 
 /** 本地缓存时间戳（0 表示当前进程还没有可用缓存） */
 let cachedAt = 0
+/**
+ * 冷启动本地缓存是否还在恢复中：storage.get 是异步的，回调回来前
+ * 页面拿不到数据，若此时渲染会误判"没数据"闪一下"请连接手机"空态。
+ * init 置 true，storage 回调（success/fail/异常）置 false；
+ * 页面据此决定首帧是等通知还是直接渲染。
+ */
+let cachePending = false
 /** 同步诊断（关于页「同步诊断」展示）：最近一次数据的来源、形态、时间 */
 let lastSource = ''
 let lastShape = ''
@@ -517,34 +524,50 @@ function ensureFresh(reason) {
  */
 function init() {
   // 缓存必须先读：冷启动时不依赖任何连接状态
+  cachePending = true
+  // 看门狗：个别平台实现可能不回 storage 回调，1.5s 后强制结束 pending 并通知一次，
+  // 页面首帧不会永远等下去（无缓存的首装场景也靠这条路径渲染空态）。
+  setTimeout(function () {
+    if (cachePending) {
+      cachePending = false
+      notify()
+    }
+  }, 1500)
   try {
     storage.get({
       key: STORAGE_KEY,
       success: function (data) {
+        cachePending = false
         const raw = readStoredValue(data)
-        if (!raw) return
-        // 手机已经推过数据（更新），不要用旧缓存覆盖
-        if (appliedRev > 0) return
-        const result = normalizePayload(raw)
-        if (!result.ok) {
-          lastError = 'cache rejected: ' + result.error
-          console.log('[sync] cache rejected:', result.error)
-          return
+        if (raw && appliedRev === 0) {
+          // 手机已经推过数据（更新），不要用旧缓存覆盖
+          const result = normalizePayload(raw)
+          if (result.ok) {
+            cachedAt = result.payload.savedAt || 0
+            lastSource = 'cache'
+            lastShape = result.shape || ''
+            lastAt = cachedAt
+            applyPayload(result.payload)
+            console.log('[sync] cache restored, savedAt=' + cachedAt + ' ' + lastShape)
+          } else {
+            lastError = 'cache rejected: ' + result.error
+            console.log('[sync] cache rejected:', result.error)
+          }
         }
-        cachedAt = result.payload.savedAt || 0
-        lastSource = 'cache'
-        lastShape = result.shape || ''
-        lastAt = cachedAt
-        applyPayload(result.payload)
+        // 无论恢复成功与否都通知一次：页面首帧在等这个通知再渲染，
+        // 避免缓存还没读回时误判"没数据"闪一下"请连接手机"空态。
         notify()
-        console.log('[sync] cache restored, savedAt=' + cachedAt + ' ' + lastShape)
       },
       fail: function (data, code) {
+        cachePending = false
         lastError = 'storage.get fail ' + code
+        notify()
       }
     })
   } catch (e) {
+    cachePending = false
     lastError = String(e)
+    notify()
   }
 
   if (connect) return
@@ -667,5 +690,6 @@ export default {
   normalizePayload: normalizePayload,
   onScheduleChange: onScheduleChange,
   onToast: onToast,
-  getStatus: getStatus
+  getStatus: getStatus,
+  isCachePending: function () { return cachePending }
 }

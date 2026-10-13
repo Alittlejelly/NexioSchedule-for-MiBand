@@ -5,7 +5,7 @@
     <!-- 单层常驻结构：切日只换数据、不重建任何节点。
          Vela 3.6（小米手环 9 Pro）上重建带 scroll 的层节点会导致整屏黑且点不动，
          所以这里没有双层、没有 for 复用、没有动画，切日只更新下面这些绑定。 -->
-    <scroll class="body" scroll-y="true" bounces="true" if="{{isHome}}">
+    <scroll class="body" scroll-y="true" bounces="{{scrollBounces}}" if="{{isHome}}">
       <div class="screen screen-home" onswipe="onSwipe" ontouchstart="onTouchStart">
         <!-- 头部已移到滚动层外面固定住（见文件末尾 .hd 那一块），
              这里用 .screen-home 的 padding-top 给固定头部让出高度 -->
@@ -48,14 +48,15 @@
           </div>
         </block>
 
-        <!-- 空状态：没有课程啦 / 好好休息吧 -->
-        <div class="empty" if="{{day.showEmpty}}">
+        <!-- 空状态：没有课程啦 / 好好休息吧（宽屏用 empty-wide 上移） -->
+        <div class="{{clsEmpty}}" if="{{day.showEmpty}}">
           <text class="empty-text">{{day.emptyTitle}}</text>
           <text class="empty-text" if="{{day.showEmptySub}}">{{day.emptySub}}</text>
         </div>
 
         <!-- 列表末尾：「关于」与「今」并排（设计稿 32:205）。
-             回到今天时「今」不渲染，只剩「关于」，由 .actions 的居中自动归位。 -->
+             回到今天时「今」不渲染，只剩「关于」，由 .actions 的居中自动归位。
+             无课时它跟在空态后面，空态上移它自然跟着上移，无需单独变体。 -->
         <div class="actions">
           <div class="pill pill-about" onclick="onTabAbout">
             <text class="pill-text">关于</text>
@@ -70,7 +71,7 @@
     <scroll class="body" scroll-y="true" bounces="true" if="{{isAbout}}">
     <div class="screen screen-about">
       <!-- 头部（设计稿 38:418）：返回 + 应用状态 + 当前时间 -->
-      <div class="ab-head">
+      <div class="{{clsAbHead}}">
         <div class="ab-back" onclick="onTabHome">
           <image class="ab-caret" src="/common/caret_left.png"></image>
         </div>
@@ -147,13 +148,20 @@
     </div>
     </stack>
 
+    <!-- 固定头部下缘的渐隐带：整张图 = 实心 95（藏在 .hd 黑底后）+ 渐隐 10（头下缘），
+         用 top:0 零偏移挂（RW6 实机证明带非零 top/bottom 的绝对定位 <image> 会错位/消失，
+         零偏移层 hd/daybar/hero-bg 都正常）。实心段与 .hd 黑底同色重叠不可见，
+         渐隐段正好落在头部下缘，观感与旧方案一致。
+         必须排在 .hd 之前：渲染顺序 = 堆叠顺序，实心段要垫在头部文字下层。 -->
+    <image class="headmask-img" src="/common/headmask.png" show="{{isHome}}"></image>
+
     <!-- ===== 固定头部（滚动时不跟着走） =====
          放在滚动层外面、绝对定位贴顶，并铺不透明黑底：课程列表从它下面滚过去。
          用 show 而不是 if —— 常驻节点只切换可见性，避免 Vela 3.6 重建节点。
-         高度定死 95px（.headmask-img 的 top 与 .screen-home 的 padding-top 都依赖它）。
+         高度定死 95px（headmask 的实心段与 .screen-home 的 padding-top 都依赖它）。
          结构照设计稿：时钟只占第一行的高度，所以「日期 + 时钟」同行、
          「今日概览」单独占一行吃满整屏宽度（否则会被时钟挤到折行）。 -->
-    <div class="hd" show="{{isHome}}">
+    <div class="{{clsHd}}" show="{{isHome}}">
       <div class="hd-row1">
         <text class="hd-date">{{day.dateShort}}</text>
         <text class="hd-clock">{{day.clockText}}</text>
@@ -161,23 +169,14 @@
       <text class="hd-sum">{{day.summary}}</text>
     </div>
 
-    <!-- 固定头部下缘的渐隐带：紧贴 95px 头部之下，alpha 255→0（顶部全黑接头部、
-         底部透明），滚上来的课程在这一段里淡出，不会在头部边缘被硬生生切断。
-         与底部 .barmask-img 是同一套做法、方向相反。 -->
-    <image class="headmask-img" src="/common/headmask.png" show="{{isHome}}"></image>
-
     <!-- ===== 底部渐隐遮罩 =====
-         设计稿的底栏上缘是渐隐、不切边。设备上带透明 stop 的 background 渐变
-         不渲染、而多条纯黑叠 opacity 会有可见的台阶（就是"渐变不自然"），
-         所以改成一张烘焙好真实 alpha 渐变的 PNG（线性 0→255，顶部透明、底部全黑）。
-         首页翻日栏 40px、关于页返回栏 55px 高度不同，但这里只用「一条」遮罩：
-         靠 style 绑定把 bottom 跟着当前页面切换（barMaskBottom）。
-         不用两个节点 + show 是因为本工程没有在 <image> 上用 show 的先例，
-         万一 show 不生效就会两条同时画出来，两条错开的位置之间正好露出一道空隙。 -->
-    <image class="barmask-img" src="/common/barmask.png" style="bottom: {{barMaskBottom}}px"></image>
+         整张图 = 渐隐 20（底栏上缘）+ 实心（藏在翻日栏/返回栏黑底后），
+         用 bottom:0 零偏移挂（理由同 headmask）。首页用 60px 图（实心 40 配翻日栏），
+         关于页用 75px 图（实心 55 配返回栏），靠 barMaskCls 切高度、barMaskSrc 切图。 -->
+    <image class="barmask-img {{barMaskCls}}" src="{{barMaskSrc}}"></image>
 
     <!-- ===== 底部翻日栏（设计稿）：「‹ 第6周 周三 ›」 ===== -->
-    <div class="daybar" if="{{isHome}}">
+    <div class="{{clsDaybar}}" if="{{isHome}}">
       <div class="daybar-btn" onclick="onPrevDay">
         <image class="caret" src="/common/caret_left.png"></image>
       </div>
@@ -209,13 +208,6 @@ import device from '@system.device'
 
 /** 左缘留给系统「右滑回桌面」的宽度，与 .sys-back-edge 保持一致 */
 const EDGE_W = 12
-/** 底栏高度（首页翻日栏 40 / 关于页返回栏 53）：只作为 CSS padding-bottom 的
- *  参照记录在注释里，代码里不再引用。 */
-/** 底部渐隐带的 bottom：与底栏高度解耦，单独控制渐隐带离屏幕底部的距离。
- *  之前直接等于底栏高（40/53），渐隐带贴在翻日栏上缘；
- *  调小 = 往下移（压向屏幕底部），调大 = 往上移。 */
-const BARMASK_BOTTOM_HOME = 35
-const BARMASK_BOTTOM_ABOUT = 45
 /** 设计稿主卡图标：正在上课 / 下节课 用纸飞机，快上课了 用喇叭 */
 const ICON_PLANE = '/common/hero_plane.png'
 const ICON_MEGAPHONE = '/common/hero_megaphone.png'
@@ -236,9 +228,26 @@ export default {
   private: {
     isHome: true,
     isAbout: false,
-    /* 底部渐隐带的 bottom 偏移：现在与底栏高度解耦（见 BARMASK_BOTTOM_*），
-       单独控制渐隐带离屏幕底部的距离。 */
-    barMaskBottom: BARMASK_BOTTOM_HOME,
+    /* 底部渐隐带：类决定高度（bm-home 60 / bm-about 75 = 渐隐 20 + 对应底栏高），
+       src 决定用哪张图（实心段长度配对应底栏）。切页时成对切换。 */
+    barMaskCls: 'bm-home',
+    barMaskSrc: '/common/barmask_home.png',
+    /* 宽屏（Redmi Watch 6 等 screenWidth>=400）运行时变体类：
+       默认窄屏（手环 9 Pro）只用基础类；probePlatform 探测到宽屏后追加 -wide 变体。
+       用运行时探测而不是只靠 CSS 媒体查询：设备是否支持 @import 媒体查询不确定。 */
+    clsHd: 'hd',
+    clsDaybar: 'daybar',
+    clsEmpty: 'empty',
+    clsAbHead: 'ab-head',
+    /* 宽屏标记：probePlatform 探测 screenWidth>=400 后置 true。
+       宽屏同时关掉 scroll 的 bounces（scrollBounces=false）：RW6 的横向回弹
+       是"卡半屏"的冻结源头，关掉后横滑切日可以即时执行、不再与回弹打架。
+       窄屏（手环 9 Pro）保持 bounces=true + 横滑即时切换。 */
+    _isWide: false,
+    scrollBounces: true,
+    /* 冷启动缓存恢复中：只抑制空态与概览文案（避免闪"请连接手机"/闪错误概览），
+       头部日期/时钟照常渲染（见 buildDay）。settle 通知里清 false。 */
+    bootPending: false,
     /* 「关于」这一支（打赏已并入关于页，不再单开页面） */
     aboutActive: false,
     /* 当前展示的那一天（单层常驻，切日只换这个对象） */
@@ -258,14 +267,24 @@ export default {
   },
   onInit() {
     this.unsubscribe = sync.onScheduleChange(() => {
+      // 缓存 settle 的第一次通知：解除空态/概览抑制，再正常刷新
+      this.bootPending = false
       this.refreshHome()
       this.refreshDiagnostics()
+      // 冷启动缓存 settle 后的第一次通知：补上 pending 期间跳过的拉新
+      if (this._needFreshOnSettle) {
+        this._needFreshOnSettle = false
+        sync.ensureFresh('show-settle')
+      }
     })
     this.unsubscribeToast = sync.onToast((message) => {
       this.showPageToast(message)
     })
     sync.init()
     this.probePlatform()
+    // 冷启动本地缓存异步恢复中：照常渲染（头部日期/时钟立即出现），
+    // 但用 bootPending 抑制空态与概览文案，避免闪"请连接手机"/闪错误概览。
+    this.bootPending = sync.isCachePending()
     this.refreshHome()
     this.refreshDiagnostics()
     this._refreshTimer = setInterval(() => {
@@ -273,10 +292,16 @@ export default {
     }, 60000)
   },
   onShow() {
+    this.bootPending = sync.isCachePending()
     this.refreshHome()
     this.refreshDiagnostics()
-    // 数据过期就主动向手机拉一次，别等手机那边点推送
-    sync.ensureFresh('show')
+    // 缓存恢复中：settle 通知里补拉新；恢复已完成则直接拉
+    if (this.bootPending) {
+      this._needFreshOnSettle = true
+    } else {
+      // 数据过期就主动向手机拉一次，别等手机那边点推送
+      sync.ensureFresh('show')
+    }
   },
   onDestroy() {
     if (this._refreshTimer) {
@@ -403,12 +428,15 @@ export default {
 
     const emptyState = vm.emptyState
     const needPhone = emptyState === 'need-phone'
+    // 冷启动缓存恢复中：概览与空态先留空（头部日期/时钟照常渲染），
+    // 避免首帧闪"请连接手机"或闪错误的"今天没有课啦"；settle 通知后正常刷新。
+    const pending = !!this.bootPending
     return {
       isToday: isToday,
       showToday: !isToday,
       dateShort: util.formatShortDate(viewDate),
       clockText: util.formatClock(now),
-      summary: summary,
+      summary: pending ? '' : summary,
       barText: (vm.weekText ? vm.weekText + ' ' : '') + util.getWeekday(viewDate),
       hasFocus: hasFocus,
       heroBg: heroBg,
@@ -419,8 +447,8 @@ export default {
       nextCountdown: nextCountdown,
       nextMeta: nextMeta,
       groups: groups,
-      showEmpty: !vm.hasCourses,
-      showEmptySub: !vm.hasCourses,
+      showEmpty: !pending && !vm.hasCourses,
+      showEmptySub: !pending && !vm.hasCourses,
       emptyTitle: needPhone
         ? '请连接手机'
         : emptyState === 'holiday'
@@ -439,6 +467,8 @@ export default {
   /**
    * 读平台版本（Vela）与 APILevel，仅用于关于页的「同步诊断」展示。
    * 小米手环 9 Pro 是 Vela 3.6，平台信息能帮助定位机型差异。
+   * 顺带做宽屏探测：screenWidth >= 400（Redmi Watch 6 = 432）时给固定头部、
+   * 翻日栏、空态、关于按钮追加 -wide 变体类（圆角内缩 / 整体上移）。
    */
   probePlatform() {
     this._platform = '-'
@@ -448,6 +478,16 @@ export default {
           const name = (info && (info.platformVersionName || info.osVersionName)) || ''
           this._platform = name + (info && info.APILevel != null ? ' / api' + info.APILevel : '')
           console.log('[page] platform=' + name)
+          const w = info && (info.screenWidth || 0)
+          if (w >= 400) {
+            console.log('[page] wide screen ' + w + ' -> -wide variants')
+            this._isWide = true
+            this.scrollBounces = false
+            this.clsHd = 'hd hd-wide'
+            this.clsDaybar = 'daybar daybar-wide'
+            this.clsEmpty = 'empty empty-wide'
+            this.clsAbHead = 'ab-head ab-head-wide'
+          }
           this.refreshDiagnostics()
         },
         fail: () => {
@@ -507,24 +547,27 @@ export default {
     if (this._gestureSwiped) return
     this._gestureSwiped = true
     const dir = e && e.direction
-    if (dir === 'left') {
-      this.goDay(1)
-    } else if (dir === 'right') {
-      this.goDay(-1)
-    }
+    if (dir !== 'left' && dir !== 'right') return
+    // 宽屏（RW6）此前"卡半屏"的冻结源头是横向回弹：回弹期间/之后的切日重渲染
+    // 把视图冻在半屏偏移处（300ms 延迟实测无效）。现在宽屏关掉 scroll 的 bounces
+    // （scrollBounces=false，probePlatform 里置位），回弹不存在了，横滑即时切日安全。
+    // 窄屏（手环 9 Pro）bounces 保持 true，本就无回弹冻结问题，同样即时切换。
+    this.goDay(dir === 'left' ? 1 : -1)
   },
   onTabHome() {
     this.isHome = true
     this.isAbout = false
     this.aboutActive = false
-    this.barMaskBottom = BARMASK_BOTTOM_HOME
+    this.barMaskCls = 'bm-home'
+    this.barMaskSrc = '/common/barmask_home.png'
     this.refreshHome()
   },
   onTabAbout() {
     this.isHome = false
     this.isAbout = true
     this.aboutActive = true
-    this.barMaskBottom = BARMASK_BOTTOM_ABOUT
+    this.barMaskCls = 'bm-about'
+    this.barMaskSrc = '/common/barmask_about.png'
     // 进关于页时刷新一次连接状态（连接变化不一定伴随课表推送）
     this.refreshDiagnostics()
   }
@@ -602,11 +645,11 @@ export default {
 
   /* 首页滚动内容：顶部给固定头部 95px + 它下面的渐隐带让出高度，
      静置时首条课程完整可见；滚动时内容在这段里淡出、不会被硬切。
-     底部同理要覆盖「翻日栏 40px + 渐隐带 20px」= 60px，
+     底部同理要覆盖「翻日栏 40px + 渐隐带 40px」= 80px，
      否则继承 .screen 的 150px 会在列表末尾留出一大段纯黑空隙。 */
   .screen-home {
-    padding-top: 105px;
-    padding-bottom: 60px;
+    padding-top: 115px;
+    padding-bottom: 80px;
   }
 
   .hd-row1 {
@@ -952,30 +995,40 @@ export default {
      做法：一张烘焙好真实 alpha 渐变的 PNG（线性 0→255，顶部透明、底部全黑）。
      为什么不用 CSS：带透明 stop 的 background 渐变在设备上不渲染；
      多条纯黑叠 opacity 又会有可见台阶（"渐变不自然"）。
-     图由 figma-assets/gen_barmask.py 生成，改 height 后建议重新出图。
+     图由 figma-assets/gen_masks_pro.py 生成，改 height 后必须重新出图。
      bottom 必须等于对应底栏的高度，否则渐隐带会与底栏脱开、中间露出完整内容。 */
-  /* 底部渐隐带：一条节点，bottom 由 style 绑定跟随当前页面（见模板注释）。
-     首页翻日栏 40px -> bottom 40；关于页返回栏 55px -> bottom 55。
-     改底栏高度时同步改脚本里的 BARMASK_BOTTOM_HOME / BARMASK_BOTTOM_ABOUT。 */
+  /* 底部渐隐带：整张图 = 渐隐段（底栏上缘）+ 实心段（藏在底栏黑底后），
+     用 bottom:0 零偏移挂（RW6 实机证明非零偏移的绝对定位 <image> 会错位/消失）。
+     高度由类决定，必须 = 渐隐 40 + 对应底栏高度：
+       bm-home 80 = 40 + 翻日栏 40；bm-about 95 = 40 + 返回栏 55。
+     渐隐段加宽到 40 是因为 RW6 上 20px 覆盖不全（实机反馈底缘内容透出）。 */
   .barmask-img {
     position: absolute;
     left: 0px;
     right: 0px;
-    bottom: 20px;
+    bottom: 0px;
     width: 100%;
-    height: 30px;
   }
 
-  /* 固定头部下缘的渐隐带：紧贴 95px 头部下方（top: 95px，必须与 .hd 高度一致），
-     alpha 255→0，把"内容在头部边缘被硬切"变成一段 10px 的淡出。
-     与 .barmask-img 同一套做法、方向相反。 */
+  .bm-home {
+    height: 80px;
+  }
+
+  .bm-about {
+    height: 95px;
+  }
+
+  /* 固定头部下缘的渐隐带：整张图 = 实心 95 + 渐隐 20（y95..115），top:0 零偏移挂。
+     渐隐起点被头部黑底钉死在 y95（headmask 在 .hd 下层，y<95 的部分被黑底吞掉、
+     屏幕上渐隐直接消失——solid 90 那版就踩了这个坑）。渐隐曲线形状取自
+     用户手绘稿（figma-assets/headmask_user_edit.png），重采样到 20 行。 */
   .headmask-img {
     position: absolute;
     left: 0px;
     right: 0px;
-    top: 95px;
+    top: 0px;
     width: 100%;
-    height: 20px;
+    height: 115px;
   }
 
   /* 关于页：底部单颗返回药丸。
@@ -1001,7 +1054,7 @@ export default {
      露出一段 95px 的纯黑空隙。 */
   .screen-about {
     min-height: 620px;
-    padding-bottom: 75px;
+    padding-bottom: 95px;
     padding-left: 4px;
     padding-right: 4px;
   }
@@ -1288,5 +1341,42 @@ export default {
     font-weight: bold;
     color: #ffffff;
     lines: 1;
+  }
+
+  /* ---------------- 宽屏（Redmi Watch 6 等 432×514）运行时变体 ----------------
+     由 probePlatform 按 device.getInfo().screenWidth >= 400 追加 -wide 类，
+     窄屏（手环 9 Pro 336）不命中、完全不受影响。
+     为什么不用 CSS 媒体查询：实机验证 @import 媒体查询在 Vela 上不命中。
+     注意：-wide 变体一律不改 hd/daybar/backbar 的高度 —— 高度与渐隐 PNG 的
+     实心段严格咬合（headmask 实心 95 / barmask 实心 40、55），改高度会脱开露缝。
+     宽屏的位置微调只走内边距。 */
+
+  /* 头部：圆角矩形屏的顶部两角会裁切贴边文字 —— 左右内边距 14→30 往里缩，
+     padding-top 10→14 让首行离顶角更远。高度保持 95 不变（与 headmask 咬合）。 */
+  .hd-wide {
+    padding-top: 14px;
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  /* 翻日栏：贴底不变（与 barmask 实心段咬合），内容上移 —— padding-top 24→14，
+     星期与箭头整体抬高约 10px，远离底部圆角。 */
+  .daybar-wide {
+    padding-top: 14px;
+  }
+
+  /* 空态：整块压矮并上移（204→150、上内边距 40→10），
+     「请连接手机」文案与后面的关于按钮一起上移，不再沉在屏幕下半部。 */
+  .empty-wide {
+    height: 150px;
+    padding-top: 10px;
+  }
+
+  /* 关于页头部：右侧时钟贴边会被 RW6 的右圆角裁切（实机截图 09:12 被切）。
+     左右各加 20px 内边距（叠加返回/时钟自身的 10px margin = 距边 30px，
+     与首页 hd-wide 的 30px 内缩对齐）。 */
+  .ab-head-wide {
+    padding-left: 20px;
+    padding-right: 20px;
   }
 </style>
