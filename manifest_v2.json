@@ -31,7 +31,7 @@
     "xmb10p": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release.rpk",
-      "versionCode": 35,
+      "versionCode": 36,
       "updatelogs": [
         {
           "version": "2.0.0-release",
@@ -42,7 +42,7 @@
     "xmb10": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release-xmb10.rpk",
-      "versionCode": 34,
+      "versionCode": 36,
       "updatelogs": [
         {
           "version": "2.0.0-release",
@@ -53,7 +53,7 @@
     "xmb11": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release-xmb10.rpk",
-      "versionCode": 34,
+      "versionCode": 36,
       "updatelogs": [
         {
           "version": "2.0.0-release",
@@ -64,7 +64,7 @@
     "xmb10nfc": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release-xmb10.rpk",
-      "versionCode": 34,
+      "versionCode": 36,
       "updatelogs": [
         {
           "version": "2.0.0-release",
@@ -75,7 +75,7 @@
     "xmb11nfc": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release-xmb10.rpk",
-      "versionCode": 34,
+      "versionCode": 36,
       "updatelogs": [
         {
           "version": "2.0.0-release",
@@ -86,27 +86,27 @@
     "xmrw5": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release.rpk",
-      "versionCode": 35
+      "versionCode": 36
     },
     "xmrw6": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release.rpk",
-      "versionCode": 35
+      "versionCode": 36
     },
     "xmrw5xring": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release.rpk",
-      "versionCode": 35
+      "versionCode": 36
     },
     "xmb9": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release-xmb10.rpk",
-      "versionCode": 33
+      "versionCode": 36
     },
     "xmb9p": {
       "version": "2.0.0-release",
       "file_name": "downloads/com.haooz.chedule.release.2.0.0-release.rpk",
-      "versionCode": 35
+      "versionCode": 36
     }
   },
   "ext": {}
