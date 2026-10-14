@@ -17,6 +17,10 @@
       {
         "name": "bandbbs_83349",
         "bindABAccount": true
+      },
+      {
+        "name": "@aurysian",
+        "bindABAccount": true
       }
     ]
   },
