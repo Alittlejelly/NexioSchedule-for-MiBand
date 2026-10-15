@@ -426,7 +426,10 @@ function bindConnect() {
     lastError = null
     console.log('[sync] interconnect open, reconnected=', data && data.isReconnected)
     notifyConnected()
-    requestSync('reconnect')
+    // force：重连事件必须立刻拉一次，不能被节流窗口吞掉。
+    // （之前不带 force：开机时通道没连上的失败请求会占掉 15s 窗口，
+    // 手机随后连上时这次 reconnect 被节流 → 课表最长等一个轮询周期才同步）
+    requestSync('reconnect', true)
     startPolling()
   }
   connect.onclose = function (data) {

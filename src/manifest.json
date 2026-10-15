@@ -1,9 +1,9 @@
 {
   "package": "com.haooz.chedule",
-  "name": "nexio课程表",
+  "name": "Nexio课程表",
   "icon": "/common/icon.png",
-  "versionName": "2.0.0-debug",
-  "versionCode": 34,
+  "versionName": "2.0.1-release",
+  "versionCode": 37,
   "minPlatformVersion": 1200,
   "simulationVersion": "default",
   "deviceTypeList": ["watch"],

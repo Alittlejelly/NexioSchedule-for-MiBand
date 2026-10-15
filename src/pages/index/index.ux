@@ -207,7 +207,7 @@ import util from '../../common/util'
 import device from '@system.device'
 
 /** 左缘留给系统「右滑回桌面」的宽度，与 .sys-back-edge 保持一致 */
-const EDGE_W = 12
+const EDGE_W = 14
 /** 设计稿主卡图标：正在上课 / 下节课 用纸飞机，快上课了 用喇叭 */
 const ICON_PLANE = '/common/hero_plane.png'
 const ICON_MEGAPHONE = '/common/hero_megaphone.png'
@@ -254,7 +254,7 @@ export default {
     day: {},
     viewDateTs: 0,
     /* 与 manifest.json 的 versionName 保持一致 */
-    versionName: '2.0.0-debug',
+    versionName: '2.0.1-release',
     /* 手机连接状态卡（常驻）：按连接态换渐变底 / 图标 / 时间颜色 */
     diagStatus: '',
     diagTime: '',
@@ -600,7 +600,7 @@ export default {
     position: absolute;
     left: 0px;
     top: 0px;
-    width: 10px;
+    width: 14px;
     height: 100%;
     background-color: transparent;
   }
