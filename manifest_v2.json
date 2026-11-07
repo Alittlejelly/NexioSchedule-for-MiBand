@@ -33,10 +33,14 @@
   ],
   "downloads": {
     "xmb10p": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -56,10 +60,14 @@
       ]
     },
     "xmb10": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release-xmb10.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -79,10 +87,14 @@
       ]
     },
     "xmb11": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release-xmb10.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -102,10 +114,14 @@
       ]
     },
     "xmb10nfc": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release-xmb10.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -125,10 +141,14 @@
       ]
     },
     "xmb11nfc": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release-xmb10.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -148,10 +168,14 @@
       ]
     },
     "xmrw5": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -167,10 +191,14 @@
       ]
     },
     "xmrw6": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -186,10 +214,14 @@
       ]
     },
     "xmrw5xring": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -205,10 +237,14 @@
       ]
     },
     "xmb9": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release-xmb10.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
@@ -224,10 +260,14 @@
       ]
     },
     "xmb9p": {
-      "version": "2.0.3-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.3-release.rpk",
-      "versionCode": 39,
+      "version": "2.0.4-release",
+      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
+      "versionCode": 40,
       "updatelogs": [
+        {
+          "version": "2.0.4-release",
+          "content": "新增关于页内使用教程卡片"
+        },
         {
           "version": "2.0.3-release",
           "content": "修复已知BUG，提升课表稳定性"
