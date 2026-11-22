@@ -33,10 +33,14 @@
   ],
   "downloads": {
     "xmb10p": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "新增关于页内使用教程卡片"
@@ -60,10 +64,14 @@
       ]
     },
     "xmb10": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
@@ -87,10 +95,14 @@
       ]
     },
     "xmb11": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
@@ -114,10 +126,14 @@
       ]
     },
     "xmb10nfc": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
@@ -141,10 +157,14 @@
       ]
     },
     "xmb11nfc": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
@@ -168,10 +188,14 @@
       ]
     },
     "xmrw5": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "新增关于页内使用教程卡片"
@@ -191,10 +215,14 @@
       ]
     },
     "xmrw6": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "新增关于页内使用教程卡片"
@@ -214,10 +242,14 @@
       ]
     },
     "xmrw5xring": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "新增关于页内使用教程卡片"
@@ -237,10 +269,14 @@
       ]
     },
     "xmb9": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release-xmb10.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "优化上下滑动手感\n新增关于页内使用教程卡片"
@@ -260,10 +296,14 @@
       ]
     },
     "xmb9p": {
-      "version": "2.0.4-release",
-      "file_name": "downloads/com.haooz.chedule.debug.2.0.4-release.rpk",
-      "versionCode": 40,
+      "version": "2.0.5-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
+      "versionCode": 205,
       "updatelogs": [
+        {
+          "version": "2.0.5-release",
+          "content": "修复课表无法导入的BUG"
+        },
         {
           "version": "2.0.4-release",
           "content": "新增关于页内使用教程卡片"
