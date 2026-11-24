@@ -6,7 +6,7 @@
          Vela 3.6（小米手环 9 Pro）上重建带 scroll 的层节点会导致整屏黑且点不动，
          所以这里没有双层、没有 for 复用、没有动画，切日只更新下面这些绑定。 -->
     <scroll class="body" scroll-y="true" bounces="{{scrollBounces}}" if="{{isHome}}">
-      <div class="screen screen-home" onswipe="onSwipe" ontouchstart="onTouchStart">
+      <div class="screen screen-home" onswipe="onSwipe" ontouchstart="onTouchStart" ontouchend="onTouchEnd">
         <!-- 头部已移到滚动层外面固定住（见文件末尾 .hd 那一块），
              这里用 .screen-home 的 padding-top 给固定头部让出高度 -->
 
@@ -68,8 +68,8 @@
       </div>
     </scroll>
 
-    <scroll class="body" scroll-y="true" bounces="true" if="{{isAbout}}">
-    <div class="screen screen-about">
+    <scroll class="body" scroll-y="true" bounces="{{scrollBounces}}" if="{{isAbout}}">
+    <div class="screen screen-about" onswipe="onAboutSwipe">
       <!-- 头部（设计稿 38:418）：返回 + 应用状态 + 当前时间 -->
       <div class="{{clsAbHead}}">
         <div class="ab-back" onclick="onTabHome">
@@ -97,7 +97,20 @@
         </div>
         <image class="st-icon" src="{{diagIcon}}"></image>
         <text class="st-time {{diagTimeCls}}">{{diagTime}}</text>
-        <text class="st-label">最后一次本地更新时间</text>
+        <text class="st-label">{{diagLabel}}</text>
+      </div>
+
+      <!-- 如何使用：紧跟连接状态卡（先看连没连上，再看连不上该怎么办）。
+           文案与标准版逐字一致（安卓手机下载 / Nexio课程表 / 连接后使用），
+           只按 336 画布放大字号；三行拆法也照搬标准版 —— 跨版本对齐比
+           "本机放得下就写成一行"更好维护，RW6(432) 上再居中显示也不会显得空。 -->
+      <div class="sec-wrap">
+        <text class="section-label">如何使用</text>
+      </div>
+      <div class="card how-card">
+        <text class="how-l1">安卓手机下载</text>
+        <text class="how-l2">Nexio课程表</text>
+        <text class="how-l3">连接后使用</text>
       </div>
 
       <div class="sec-wrap">
@@ -193,9 +206,34 @@
       </div>
     </div>
 
-    <!-- 连接提示：常驻节点只切换可见性（Vela 3.6 避免重建节点），位置在底部栏上方 -->
-    <div class="toast" show="{{toastVisible}}">
-      <text class="toast-text">{{toastText}}</text>
+    <!-- ===== 回传浮层（设计稿：蓝圈白箭头 + 正在回传课表 + 进度条）=====
+         对端（AstroBox 插件「从手环获取课表」）发 action=export 拉课表时盖上，
+         回包发出后自动收起。放在 .page 的最后一个子节点：渲染顺序即堆叠顺序，
+         不依赖 z-index。整块内容垂直居中 —— 设计稿内容区 122~361，中心 241，
+         与 480 屏的中心几乎重合，换到宽屏（RW6）也自然居中。 -->
+    <div class="xfer" if="{{xferActive}}">
+      <div class="xfer-circle">
+        <image class="xfer-arrow" src="/common/xfer_arrow.png"></image>
+      </div>
+      <text class="xfer-text">正在回传课表</text>
+      <div class="xfer-track">
+        <div class="xfer-fill {{xferCls}}"></div>
+      </div>
+    </div>
+
+    <!-- ===== 传输失败页（设计稿「画板 1 副本 5」：红圈白叉 + 传输出错 + 传输日志）=====
+         手机把课表推过来但手环用不了（坏 JSON / 协议不符 / 没有 courses 数组），
+         或 request 发出后重试用尽手机一直没回应时盖上。整屏没有返回按钮，
+         点任意位置收起（右滑也收起：这个手势在根页面是「退出应用」，必须吃掉）。
+         排在 .xfer 之后 = 堆叠顺序更靠上；两者不会同时出现（一个是导出、一个是导入）。 -->
+    <div class="{{clsXerr}}" if="{{xerrActive}}" onclick="onXerrTap" onswipe="onXerrSwipe">
+      <div class="xerr-circle">
+        <image class="xerr-cross" src="/common/error_cross.png"></image>
+      </div>
+      <text class="xerr-title">{{xerrTitle}}</text>
+      <div class="xerr-log">
+        <text class="xerr-line {{line.cls}}" for="{{(lineIndex, line) in xerrLines}}">{{line.text}}</text>
+      </div>
     </div>
   </div>
 </template>
@@ -214,6 +252,16 @@ const ICON_MEGAPHONE = '/common/hero_megaphone.png'
 /** 主卡渐变底（已按设计稿合成成不透明 PNG，见 hero_bg_*.png 的生成说明） */
 const HERO_BG_BLUE = '/common/hero_bg_blue.png'
 const HERO_BG_RED = '/common/hero_bg_red.png'
+
+/** 'HH:mm' → 分钟数；非法返回 -1（避免字符串比较把 '8:00' 当成大于 '14:00'） */
+function hmToMin(hm) {
+  const parts = String(hm || '').split(':')
+  if (parts.length !== 2) return -1
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  if (isNaN(h) || isNaN(m)) return -1
+  return h * 60 + m
+}
 
 /** 距 startTime（HH:mm）还有多少分钟；同一天内比较 */
 function minutesToStart(startTime, now) {
@@ -254,16 +302,26 @@ export default {
     day: {},
     viewDateTs: 0,
     /* 与 manifest.json 的 versionName 保持一致 */
-    versionName: '2.0.1-release',
+    versionName: '2.0.6-release',
+    /* 回传浮层：对端（AstroBox 插件）拉课表时覆盖全屏。
+       xferCls 是进度条填充宽度类（xf0/xf5…/xf100，满宽 182px），
+       由 sync.onExportState 推进 */
+    xferActive: false,
+    xferCls: 'xf0',
+    /* 传输失败页（设计稿「画板 1 副本 5」）：手机推的课表用不了 / 请求后手机没回应
+       时整屏盖上。内容来自 sync.onXferError，点一下收起（sync.dismissXferError）。 */
+    xerrActive: false,
+    xerrTitle: '传输出错',
+    xerrLines: [],
+    clsXerr: 'xerr',
     /* 手机连接状态卡（常驻）：按连接态换渐变底 / 图标 / 时间颜色 */
     diagStatus: '',
     diagTime: '',
     diagBg: '/common/st_bg_off.png',
     diagIcon: '/common/icon_seal_hd.png',
     diagTimeCls: '',
-    /* 页面内连接提示（底部栏上方） */
-    toastText: '',
-    toastVisible: false
+    /* 状态卡副文案：连接正常时说明时间含义，连不上时换成原因（诊断码 → 一句话） */
+    diagLabel: '最后一次本地更新时间'
   },
   onInit() {
     this.unsubscribe = sync.onScheduleChange(() => {
@@ -277,8 +335,25 @@ export default {
         sync.ensureFresh('show-settle')
       }
     })
-    this.unsubscribeToast = sync.onToast((message) => {
-      this.showPageToast(message)
+    // 对端拉课表时盖一层「正在回传课表」：发送是瞬时的，进度按时间推进
+    this.unsubscribeExport = sync.onExportState((st) => {
+      this.xferActive = !!st.active
+      // 满宽 182px（设计稿），按 5% 一档换算成宽度类（见 .xfN 样式）
+      const step = Math.min(100, Math.max(0, Math.round((st.percent || 0) / 5) * 5))
+      this.xferCls = 'xf' + step
+    })
+    // 手机→手环传输失败时盖一层「传输出错」+ 传输日志（设计稿「画板 1 副本 5」）。
+    // 日志区只有 5 行高，行内容由 sync 侧组装（哪一步 / 为什么 / 怎么办），
+    // 页面只负责加首行高亮的类 —— 首行是时间 + 哪一步失败。
+    this.unsubscribeXerr = sync.onXferError((st) => {
+      this.xerrActive = !!st.active
+      if (st.title) this.xerrTitle = st.title
+      const lines = []
+      const src = st.lines || []
+      for (let i = 0; i < src.length; i++) {
+        lines.push({ text: src[i], cls: i === 0 ? 'xerr-line-hd' : '' })
+      }
+      this.xerrLines = lines
     })
     sync.init()
     this.probePlatform()
@@ -288,6 +363,9 @@ export default {
     this.refreshHome()
     this.refreshDiagnostics()
     this._refreshTimer = setInterval(() => {
+      // 手指还按在屏幕上时不重建 day：整棵列表 diff + 文本重排会造成一次可感知的掉帧。
+      // 60s 粒度，等抬手后的下一次 tick 再刷没有影响。
+      if (this._touchActive) return
       this.refreshHome()
     }, 60000)
   },
@@ -295,6 +373,14 @@ export default {
     this.bootPending = sync.isCachePending()
     this.refreshHome()
     this.refreshDiagnostics()
+    // onHide 里停掉的 60s 刷新与 5 分钟轮询，回到前台恢复（定时器可能已被清空，重建）
+    if (!this._refreshTimer) {
+      this._refreshTimer = setInterval(() => {
+        if (this._touchActive) return
+        this.refreshHome()
+      }, 60000)
+    }
+    sync.resumePolling()
     // 缓存恢复中：settle 通知里补拉新；恢复已完成则直接拉
     if (this.bootPending) {
       this._needFreshOnSettle = true
@@ -302,6 +388,18 @@ export default {
       // 数据过期就主动向手机拉一次，别等手机那边点推送
       sync.ensureFresh('show')
     }
+  },
+  /**
+   * 页面不可见（切到其它应用/息屏）：停掉 60s 刷新与 5 分钟轮询。
+   * 手环上这些定时器在后台继续跑纯属白耗电；回到前台 onShow 会立刻补一次 refresh + 拉新。
+   */
+  onHide() {
+    if (this._refreshTimer) {
+      clearInterval(this._refreshTimer)
+      this._refreshTimer = null
+    }
+    this._touchActive = false
+    sync.pausePolling()
   },
   onDestroy() {
     if (this._refreshTimer) {
@@ -312,27 +410,14 @@ export default {
       this.unsubscribe()
       this.unsubscribe = null
     }
-    if (this.unsubscribeToast) {
-      this.unsubscribeToast()
-      this.unsubscribeToast = null
+    if (this.unsubscribeExport) {
+      this.unsubscribeExport()
+      this.unsubscribeExport = null
     }
-    if (this._toastTimer) {
-      clearTimeout(this._toastTimer)
-      this._toastTimer = null
+    if (this.unsubscribeXerr) {
+      this.unsubscribeXerr()
+      this.unsubscribeXerr = null
     }
-  },
-  /**
-   * 页面内 toast：系统 showToast 固定居中且不可定位，
-   * 这里用常驻节点切换可见性，落在底部栏上方。
-   */
-  showPageToast(message) {
-    this.toastText = message
-    this.toastVisible = true
-    if (this._toastTimer) clearTimeout(this._toastTimer)
-    this._toastTimer = setTimeout(() => {
-      this.toastVisible = false
-      this._toastTimer = null
-    }, 2000)
   },
   getViewDate() {
     return this.viewDateTs ? new Date(this.viewDateTs) : new Date()
@@ -351,6 +436,9 @@ export default {
     this.diagIcon = on ? '/common/icon_check_hd.png' : '/common/icon_seal_hd.png'
     // 未连接时时间是琥珀色（设计稿 #FFC160），已连接为白
     this.diagTimeCls = on ? '' : 'st-amber'
+    // 副文案位：连不上时「为什么」比「最后一次更新时间」有用得多
+    // （原因来自 connect.diagnosis，见 sync.js diagHint）
+    this.diagLabel = (!on && s.diagHint) ? s.diagHint : '最后一次本地更新时间'
   },
   /**
    * 组装首页视图对象（设计稿 336x480）：
@@ -361,7 +449,7 @@ export default {
    */
   buildDay(vm, now, viewDate) {
     const isToday = vm.isToday
-    const nowClock = util.formatClock(now)
+    const nowMin = now.getHours() * 60 + now.getMinutes()
     const groups = []
     let total = 0
     let remain = 0
@@ -371,7 +459,8 @@ export default {
       for (let j = 0; j < g.courses.length; j++) {
         const c = g.courses[j]
         total++
-        if (c.endTime && c.endTime > nowClock) remain++
+        // 用分钟数比：字符串比较在 '8:00' / '14:00' 这种非零填充写法下会判反
+        if (hmToMin(c.endTime) > nowMin) remain++
         items.push({
           name: c.name,
           timeText: c.timeText,
@@ -487,6 +576,7 @@ export default {
             this.clsDaybar = 'daybar daybar-wide'
             this.clsEmpty = 'empty empty-wide'
             this.clsAbHead = 'ab-head ab-head-wide'
+            this.clsXerr = 'xerr xerr-wide'
           }
           this.refreshDiagnostics()
         },
@@ -537,6 +627,12 @@ export default {
     this._touchFromEdge = !!(p && p.x <= EDGE_W)
     // 同一手势只允许触发一次切日（出入场双层都会挂 handler）
     this._gestureSwiped = false
+    // 按住期间抑制 60s 定时刷新（见 onInit 的 setInterval）
+    this._touchActive = true
+  },
+  /** 抬手：恢复定时刷新。没有位移判定需求，只清个标志位 */
+  onTouchEnd() {
+    this._touchActive = false
   },
   onSwipe(e) {
     // 左缘起手的滑动交给系统返回，应用内不响应
@@ -562,6 +658,17 @@ export default {
     this.barMaskSrc = '/common/barmask_home.png'
     this.refreshHome()
   },
+  /**
+   * 关于页向右侧滑返回首页。
+   *
+   * ⚠️ 这里必须挂 onswipe 把系统「右滑返回」吃掉：应用只有 pages/index 一个路由，
+   * 页面不消费该手势时由系统接管，而根页面的「返回」就是退出应用 —— 表现为
+   * 关于页右滑直接回桌面。首页那边靠 .sys-back-edge（仅 isHome 时渲染）把左缘
+   * 手势让给系统，所以只有关于页需要自己拦。
+   */
+  onAboutSwipe(e) {
+    if (e && e.direction === 'right') this.onTabHome()
+  },
   onTabAbout() {
     this.isHome = false
     this.isAbout = true
@@ -570,6 +677,21 @@ export default {
     this.barMaskSrc = '/common/barmask_about.png'
     // 进关于页时刷新一次连接状态（连接变化不一定伴随课表推送）
     this.refreshDiagnostics()
+  },
+  /**
+   * 传输失败页：点任意位置收起（设计稿整屏没有返回按钮）。
+   * 收起由 sync 收口 —— 它还要把这一类错误静音，否则 5 分钟一次的轮询
+   * 会把同一包坏数据反复推过来，错误页会一直弹。
+   */
+  onXerrTap() {
+    sync.dismissXferError()
+  },
+  /**
+   * 失败页上的右滑也要吃掉：根页面的「返回」手势等于退出应用，
+   * 错误页在根页之上，右滑应当只是收起它（理由同 onAboutSwipe）。
+   */
+  onXerrSwipe(e) {
+    if (e && e.direction === 'right') this.onXerrTap()
   }
 }
 </script>
@@ -1222,6 +1344,51 @@ export default {
     lines: 1;
   }
 
+  /* ---------------- 如何使用卡 ----------------
+     复用 .card 语汇（#222 圆角 22），但 .card 的内边距是「左 14 右 9」的左对齐刻度，
+     这张卡是三行居中，左右必须对称 —— 否则整块文字会比视觉中线偏左 2.5px。
+     字号按 Pro 自身刻度（st-* 相对标准版约 1.23x），不是等比缩放标准版数值：
+     文件里已有告诫，等比缩会让字号和首页对不上。 */
+  .how-card {
+    padding-top: 16px;
+    padding-right: 12px;
+    padding-bottom: 16px;
+    padding-left: 12px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .how-l1 {
+    width: 100%;
+    font-size: 26px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: center;
+    line-height: 36px;
+    lines: 1;
+  }
+
+  /* 品牌名走首页同款蓝（hero-cd 蓝），字号压住整张卡 */
+  .how-l2 {
+    width: 100%;
+    font-size: 30px;
+    font-weight: bold;
+    color: #6CAFFF;
+    text-align: center;
+    line-height: 36px;
+    lines: 1;
+  }
+
+  .how-l3 {
+    width: 100%;
+    font-size: 26px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: center;
+    line-height: 36px;
+    lines: 1;
+  }
+
   /* ---------------- 人员卡（38:456，328x260） ----------------
      3 行 64px @ y=14/98/182（行距 20）；行内：64 头像 + 10 间隙 + 文字 */
   .people-card {
@@ -1267,32 +1434,6 @@ export default {
     color: rgba(255, 255, 255, 0.75);
     lines: 1;
     margin-top: 2px;
-  }
-
-  /* ---------------- 连接提示 ----------------
-     底部翻日栏 62 +「今」药丸 52 + 间距 → toast 放在其上方 */
-  .toast {
-    position: absolute;
-    left: 0px;
-    right: 0px;
-    bottom: 150px;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .toast-text {
-    max-width: 240px;
-    font-size: 20px;
-    font-weight: bold;
-    color: #ffffff;
-    background-color: #242424;
-    border-radius: 20px;
-    padding-top: 10px;
-    padding-right: 20px;
-    padding-bottom: 10px;
-    padding-left: 20px;
-    text-align: center;
-    lines: 1;
   }
 
   /* ---------------- 打赏卡（38:480，328x296） ----------------
@@ -1378,5 +1519,174 @@ export default {
   .ab-head-wide {
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  /* ---------------- 回传浮层（设计稿 336x480）----------------
+     纯黑打底 + 蓝色圆（r=82.19 → 164x164）+ 白色回传箭头 + 26px 白字
+     + 182x9 的进度条。箭头是 xfer_arrow.png（Vela 不支持 transform: rotate，
+     设计稿里的两个 45° 圆角矩形没法用 CSS 拼，出图更稳，见
+     tools/gen_xfer_arrow.py）。 */
+  .xfer {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* 设计稿内容区 122.76~361.19、中心 241.97；块高 240，居中后 240，
+       补 4px 让整块落在 242（+2），与设计稿对齐 */
+    padding-top: 4px;
+    background-color: #000000;
+  }
+
+  .xfer-circle {
+    width: 164px;
+    height: 164px;
+    flex-shrink: 0;
+    border-radius: 82px;
+    align-items: center;
+    justify-content: center;
+    background-color: #4A8BFF;
+  }
+
+  .xfer-arrow {
+    width: 99px;
+    height: 101px;
+  }
+
+  /* 圆下缘 → 文字基线：设计稿 286.76 → 330.6，去掉字身高度约 21px */
+  .xfer-text {
+    margin-top: 21px;
+    font-size: 26px;
+    line-height: 31px;
+    font-weight: bold;
+    color: #FFFFFF;
+    text-align: center;
+  }
+
+  /* 文字下缘 → 进度条：设计稿 337 → 352.43，约 15px */
+  .xfer-track {
+    width: 182px;
+    height: 9px;
+    flex-shrink: 0;
+    margin-top: 15px;
+    border-radius: 5px;
+    flex-direction: row;
+    background-color: #1B2B45;
+  }
+
+  .xfer-fill {
+    height: 9px;
+    border-radius: 5px;
+    background-color: #4A8BFF;
+  }
+
+  /* 进度填充宽度：满宽 182px，按 5% 一档切成类（满宽 = 182×pct/100，四舍五入）。
+     不用内联 style 绑定 —— 这个项目里没有先例，Vela 各版本对 style 动态绑定
+     的支持不一致；class 绑定（class="a {{b}}"）在本页已验证可用。 */
+  .xf0 { width: 0px; }
+  .xf5 { width: 9px; }
+  .xf10 { width: 18px; }
+  .xf15 { width: 27px; }
+  .xf20 { width: 36px; }
+  .xf25 { width: 46px; }
+  .xf30 { width: 55px; }
+  .xf35 { width: 64px; }
+  .xf40 { width: 73px; }
+  .xf45 { width: 82px; }
+  .xf50 { width: 91px; }
+  .xf55 { width: 100px; }
+  .xf60 { width: 109px; }
+  .xf65 { width: 118px; }
+  .xf70 { width: 127px; }
+  .xf75 { width: 137px; }
+  .xf80 { width: 146px; }
+  .xf85 { width: 155px; }
+  .xf90 { width: 164px; }
+  .xf95 { width: 173px; }
+  .xf100 { width: 182px; }
+
+  /* ---------------- 传输失败页（设计稿「画板 1 副本 5」336x480）----------------
+     红圈（r=82.19 → 164px，圆心 y=204.95）+ 白色叉 + 26px「传输出错」+ 日志区。
+     叉是 error_cross.png（两根 23.08x105.14 圆角条交叉 45°，包围盒 91x91）：
+     Vela 的 CSS 不支持 transform: rotate，斜条拼不出来，只能出图，
+     生成脚本见 tools/gen_error_cross.py。
+     日志区按设计稿 x32.76 y341.05 270.48x123.43 的范围摆，但**不铺那块白**——
+     设计稿里那句「白块仅作区域范围显示」写明白色只是标注范围，
+     日志文字直接压在黑底上（20px 行高 24，5 行刚好 120 落在 123 内）。 */
+  .xerr {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    /* 设计稿：圆顶 122.76，内容一直排到日志区底 464.49（底部只留 15.5px） */
+    padding-top: 123px;
+    background-color: #000000;
+  }
+
+  .xerr-circle {
+    width: 164px;
+    height: 164px;
+    flex-shrink: 0;
+    border-radius: 82px;
+    align-items: center;
+    justify-content: center;
+    background-color: #ED4040;
+  }
+
+  /* 叉的包围盒 90.68 → 91；卡片不设内边距，靠 align/justify 居中 */
+  .xerr-cross {
+    width: 91px;
+    height: 91px;
+  }
+
+  /* 圆下缘 286.76 → 文字基线 330.6：与回传浮层同一套几何，直接沿用它的
+     21px 标定值（那边实测过，改 22 会整体低 1~4px） */
+  .xerr-title {
+    margin-top: 21px;
+    font-size: 26px;
+    line-height: 31px;
+    font-weight: bold;
+    color: #FFFFFF;
+    text-align: center;
+    lines: 1;
+  }
+
+  /* 标题基线 330.6 → 日志区顶 341.05：31px 行盒吃掉大部分，余 2px */
+  .xerr-log {
+    width: 270px;
+    height: 123px;
+    flex-direction: column;
+    margin-top: 2px;
+    overflow: hidden;
+  }
+
+  /* 日志行：22px 刻度里偏小一号（20px），一行 270px 能放 13 个汉字，
+     再长就靠 sync 侧截短 —— 这里 lines:1 兜底，绝不折行把日志区撑破。 */
+  .xerr-line {
+    width: 100%;
+    font-size: 20px;
+    line-height: 24px;
+    color: rgba(255, 255, 255, 0.55);
+    lines: 1;
+  }
+
+  /* 首行 = 时间 + 哪一步失败，给最高的对比度 */
+  .xerr-line-hd {
+    color: #FFFFFF;
+    font-weight: bold;
+  }
+
+  /* 宽屏（RW6 432x514）：窄屏那套「贴顶 123、底部只留 15」是按 480 排的，
+     514 上会整体偏上、底下空一大块，这里改成整块垂直居中即可
+     （宽度 270 的日志区在 432 上也放得下，无需改宽）。 */
+  .xerr-wide {
+    padding-top: 0px;
+    justify-content: center;
   }
 </style>

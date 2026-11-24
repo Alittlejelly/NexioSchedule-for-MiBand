@@ -17,11 +17,10 @@ const SECTION_META = {
 const SECTION_ORDER = ['morning', 'afternoon', 'evening']
 
 /**
- * 课前提醒提前量：band 端先固定 15 分钟。
+ * 课前提醒提前量的缺省值（15 分钟）。
  *
- * 源课表 App 的口径是 CourseRepository.getPreClassReminderMinutes()（用户可调，
- * 默认 20 分钟），但 v4 的 settings 里还没有这个字段，band 端取不到，
- * 所以暂定 15 分钟；等源 App 把 pre_class_reminder_minutes 下发后即自动跟随。
+ * 手机端 settings.pre_class_reminder_minutes 会覆盖它（源 App 的用户设置，默认 20）；
+ * 只有对端没下发这个字段（老版本 APK）时才用这个固定值，见 preClassLeadMinutes。
  */
 const DEFAULT_PRE_CLASS_LEAD = 15
 
@@ -307,8 +306,8 @@ function normalizeFullSettings(raw) {
     morning: toInt(s.morning_sections != null ? s.morning_sections : s.morningSections, 0),
     afternoon: toInt(s.afternoon_sections != null ? s.afternoon_sections : s.afternoonSections, 0),
     evening: toInt(s.evening_sections != null ? s.evening_sections : s.eveningSections, 0),
-    /* 手机端课前提醒的提前量。源 App 是 CourseRepository.getPreClassReminderMinutes()
-       （默认 20，用户可调）；目前 v4 的 settings 还没带这个字段，取不到就用 band 端的固定值 15。 */
+    /* 手机端课前提醒的提前量（WatchPayload 下发 getPreClassReminderMinutes()，
+       用户可调，默认 20）。缺字段/异常值回落到 DEFAULT_PRE_CLASS_LEAD。 */
     preClassLead: normalizePreClassLead(
       s.pre_class_reminder_minutes != null
         ? s.pre_class_reminder_minutes
@@ -382,7 +381,9 @@ function normalizeFullCourse(raw, index) {
 /**
  * 写入整表（手机推送与缓存恢复共用）。传 null / 无 courses 时清空整表模式。
  * v4 整表是「全学期权威数据」：覆盖写入，无需清理任何旧协议的累积状态。
- * @param {object|null} data { courses, settings, times }
+ * @param {object|null} data { courses, settings, times, at }
+ *   at：这份数据「手机生成时刻」的毫秒时间戳（推送=当前时间，缓存=入缓存时刻），
+ *   只用于周次校准，缺省时退回当前时间。
  */
 function setFullSchedule(data) {
   if (!data || !Array.isArray(data.courses)) {
@@ -393,7 +394,7 @@ function setFullSchedule(data) {
   }
   const settings = normalizeFullSettings(data.settings)
   fullSettings = settings
-  calibrateWeekOffset(settings)
+  calibrateWeekOffset(settings, data.at)
   fullSectionTimes = buildSectionTimes(settings, data.times)
   const list = []
   for (let i = 0; i < data.courses.length; i++) {
@@ -457,14 +458,21 @@ function calendarWeekFor(date, start) {
 }
 
 /**
- * 用推送时刻手机给的 current_week 校准周次偏移：
- * offset = current_week - 日历推算周（限制 ±2，防异常值把全部周次带偏）。
+ * 用「手机生成这份数据那一刻」的 current_week 校准周次偏移：
+ * offset = current_week - 那个时刻的日历周（限制 ±2，防异常值把全部周次带偏）。
  * 无调休合并周且开学日语义一致时 offset=0，行为不变。
+ *
+ * ⚠️ 基准时刻必须用 payload 时间戳（atMs），不能用 new Date()：
+ * current_week 是**推送那一刻**的快照，若用「今天」去减，缓存放了几天再恢复时
+ * 会把天数差当成合并周偏移 —— 周一跨周后 off=-1，整学期周次整体少一周，
+ * 单双周跟着翻转，直到下一次手机推送才会自己纠正。
  */
-function calibrateWeekOffset(settings) {
+function calibrateWeekOffset(settings, atMs) {
   weekOffset = 0
   if (!settings || !settings.semesterStart || settings.currentWeek <= 0) return
-  const cal = calendarWeekFor(new Date(), settings.semesterStart)
+  const at = atMs && isFinite(atMs) ? new Date(atMs) : new Date()
+  const cal = calendarWeekFor(at, settings.semesterStart)
+  if (cal <= 0) return
   const off = settings.currentWeek - cal
   if (off >= -2 && off <= 2) weekOffset = off
 }
@@ -510,6 +518,10 @@ function isCourseActiveInWeek(c, week) {
 function lookupWeekFor(date) {
   const computed = weekForDate(date)
   if (computed > 0) return computed
+  // 有学期起始日却推算不出周次 = 该日期在学期开始之前：不能退回「当前周」，
+  // 否则翻到开学前的日期会把本周的课显示出来（那些课那时候还不存在）。
+  if (fullSettings && fullSettings.semesterStart) return 0
+  // 完全没有学期起始日（payload 缺字段）：只能按手机给的 current_week 兜底。
   return activeWeek()
 }
 
@@ -586,10 +598,13 @@ function fullSectionText(c) {
 /** 整表模式下某天的展示课程（周次按手机给的值过滤；手机没给周次就不过滤） */
 function fullCoursesForDay(day, week) {
   const out = []
+  // 周次算不出来时**不能**退化成「不过滤」：那会把该星期几的全学期课程全铺到眼前
+  // （学期开始前 / 学期起始日缺失都会走到这里）。学期外本来就该是空的。
+  if (week <= 0) return out
   for (let i = 0; i < fullCourses.length; i++) {
     const c = fullCourses[i]
     if (c.day !== day) continue
-    if (week > 0 && !isCourseActiveInWeek(c, week)) continue
+    if (!isCourseActiveInWeek(c, week)) continue
     const t = fullCourseTimes(c)
     out.push({
       id: c.id,
@@ -603,12 +618,16 @@ function fullCoursesForDay(day, week) {
       week: week
     })
   }
-  out.sort(function (a, b) {
-    const x = a.startTime || ''
-    const y = b.startTime || ''
-    return x < y ? -1 : x > y ? 1 : 0
-  })
+  out.sort(byStartTime)
   return out
+}
+
+/** 按开始时间排序：用分钟数比，避免 '8:00' 与 '14:00' 字符串比较出错 */
+function byStartTime(a, b) {
+  const x = hmToMinutes(a.startTime)
+  const y = hmToMinutes(b.startTime)
+  if (x !== y) return x - y
+  return 0
 }
 
 let quoteText = ''
@@ -675,11 +694,7 @@ function getTodayCourses(date) {
         week: ov.week || 0
       })
     }
-    out.sort(function (a, b) {
-      const x = a.startTime || ''
-      const y = b.startTime || ''
-      return x < y ? -1 : x > y ? 1 : 0
-    })
+    out.sort(byStartTime)
     return out
   }
   const day = resolveDisplayDayKey(date)

@@ -168,11 +168,17 @@ const localDate = (s) => {
 
 const STUB_INTERCONNECT = `export default {
   instance() {
-    return {
+    const conn = {
       send(o) { (globalThis.__sent = globalThis.__sent || []).push(o && o.data); o && o.success && o.success() },
       getReadyState(o) { o && o.fail && o.fail({}, 1) },
+      diagnosis(o) {
+        const code = globalThis.__diagCode == null ? 0 : globalThis.__diagCode
+        o && o.success && o.success({ status: code })
+      },
       onmessage: null, onopen: null, onclose: null, onerror: null
     }
+    globalThis.__conn = conn
+    return conn
   }
 }`
 
@@ -326,7 +332,8 @@ for (const p of PROJECTS) {
     globalThis.__store = {}
     const hot = await loadProject(p.src)
     hot.sync.handlePhoneMessage(payloadFull())
-    check('推送后写入本地缓存', !!globalThis.__store['nexio.schedule.payload'],
+    // 真实键带版本后缀（sync.js STORAGE_KEY = 'nexio.schedule.payload.v2'），按前缀找，避免与代码漂移
+    check('推送后写入本地缓存', Object.keys(globalThis.__store).some((k) => k.indexOf('nexio.schedule.payload') === 0),
       Object.keys(globalThis.__store).join(','))
     const cold = await loadProject(p.src)
     cold.sync.init()
@@ -363,6 +370,354 @@ for (const p of PROJECTS) {
     const bad = await loadProject(p.src)
     const rBad = bad.sync.handlePhoneMessage({ protocol: 'other.protocol', version: 4, action: 'replace', courses: [] })
     check('protocol 不符被拒绝', rBad.ok === false, rBad.ok ? '竟然接受' : rBad.error)
+  }
+
+  // ---- 8. 缓存放了几天再恢复：周次不能冻结在推送那周 ----
+  // 回归：calibrateWeekOffset 曾用 new Date()（今天）去减 payload 的 current_week，
+  // 缓存放两周后 offset=-2，整学期周次整体少两周。
+  {
+    const dayIndex = (d) =>
+      Math.round(
+        (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(2026, 8, 13).getTime()) /
+          86400000
+      )
+    const calWeek = (d) => Math.max(1, Math.floor((dayIndex(d) + 6) / 7) + 1)
+
+    const past = new Date()
+    past.setDate(past.getDate() - 14)
+    const pushWeek = calWeek(past)
+    globalThis.__store = {}
+    globalThis.__store['nexio.schedule.payload.v2'] = JSON.stringify({
+      protocol: 'nexio.schedule',
+      version: 0,
+      action: 'replace',
+      savedAt: past.getTime(),
+      quote: '',
+      scheduleName: '默认课表',
+      holidays: payloadFull().holidays,
+      courses: FULL_COURSES,
+      settings: Object.assign({}, payloadFull().settings, { current_week: pushWeek }),
+      times: FULL_TIMES,
+      overrides: []
+    })
+    const cold = await loadProject(p.src)
+    cold.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    const week = cold.schedule.weekForDate(new Date())
+    check(
+      '两周前的缓存恢复后，周次按当天推算（不冻结在推送那周）',
+      week === CAL_WEEK_TODAY,
+      `期望第${CAL_WEEK_TODAY}周，实际第${week}周；缓存里写的是第${pushWeek}周`
+    )
+  }
+
+  // ---- 9. 开学前的日期不套用当前周的课 ----
+  {
+    const pre = await loadProject(p.src)
+    pre.sync.handlePhoneMessage(payloadFull())
+    const names = courseNames(view(pre.schedule, pre.util, '2026-09-01')).join(',')
+    check('开学前的日期不套用「当前周」的课', names === '', `09/01=[${names}]`)
+  }
+
+  // ---- 10. 周次校准基准 = 手机组包时刻（sentAt），不是手环本机时间 ----
+  // 回归：handlePhoneMessage 曾把 savedAt 覆写成 Date.now() 再拿它当校准基准，
+  // 而 current_week 是手机按**手机时钟**算的 —— 手环时间偏一天、又刚好跨周，
+  // offset 就会多/少一周，单双周跟着翻转。这里让手环"现在"与 sentAt 差 4 周，
+  // 并故意让 current_week 比 sentAt 当天的日历周大 1（模拟调休合并周）：
+  //   按 sentAt 校准 → offset=+1 → 今天 = 日历周+1
+  //   按本机时间校准 → offset=-3 → 被 ±2 钳制丢弃 → 今天 = 日历周（不对）
+  {
+    const dayIndex = (d) =>
+      Math.round(
+        (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(2026, 8, 13).getTime()) /
+          86400000
+      )
+    const calWeek = (d) => Math.max(1, Math.floor((dayIndex(d) + 6) / 7) + 1)
+
+    const pushDay = new Date()
+    pushDay.setDate(pushDay.getDate() - 28)
+    pushDay.setHours(12, 0, 0, 0)
+
+    globalThis.__store = {}
+    const shifted = await loadProject(p.src)
+    const pShift = payloadFull()
+    pShift.sentAt = pushDay.getTime()
+    pShift.settings.current_week = calWeek(pushDay) + 1
+    const rShift = shifted.sync.handlePhoneMessage(pShift)
+    const weekNow = shifted.schedule.weekForDate(new Date())
+    check(
+      '周次校准以手机 sentAt 为基准（与手环时钟偏差无关）',
+      rShift.ok && weekNow === CAL_WEEK_TODAY + 1,
+      `期望第${CAL_WEEK_TODAY + 1}周，实际第${weekNow}周（按本机时间算会得到第${CAL_WEEK_TODAY}周）`
+    )
+
+    // 冷启动：缓存必须带着 sentAt，恢复后周次与推送时一致
+    const cached = JSON.parse(Object.values(globalThis.__store)[0] || '{}')
+    check('缓存里保留 sentAt（冷启动校准基准不丢）', Number(cached.sentAt) === pushDay.getTime(),
+      `缓存 sentAt=${cached.sentAt} 期望=${pushDay.getTime()}`)
+    const coldShift = await loadProject(p.src)
+    coldShift.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    check(
+      '冷启动从缓存恢复后周次仍按 sentAt 校准',
+      coldShift.schedule.weekForDate(new Date()) === CAL_WEEK_TODAY + 1,
+      `实际第${coldShift.schedule.weekForDate(new Date())}周`
+    )
+  }
+
+  // ---- 11. 通道诊断：把「没装手机端」和「链路不通」分开 ----
+  {
+    globalThis.__diagCode = 1001
+    const diag = await loadProject(p.src)
+    diag.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    const st = diag.sync.getStatus()
+    check('诊断码 1001 → 状态卡文案「手机端未安装 Nexio」',
+      st.diagCode === 1001 && st.diagHint === '手机端未安装 Nexio',
+      `diagCode=${st.diagCode} diagHint="${st.diagHint}"`)
+
+    globalThis.__diagCode = 204
+    diag.sync.diagnose(true)
+    const st2 = diag.sync.getStatus()
+    check('诊断码 204 → 状态卡文案「连接超时，检查配对」',
+      st2.diagCode === 204 && st2.diagHint === '连接超时，检查配对',
+      `diagCode=${st2.diagCode} diagHint="${st2.diagHint}"`)
+
+    globalThis.__diagCode = 0
+    diag.sync.diagnose(true)
+    check('诊断码 0（通道正常）→ 不显示失败原因',
+      diag.sync.getStatus().diagHint === '', `diagHint="${diag.sync.getStatus().diagHint}"`)
+    globalThis.__diagCode = 0
+  }
+
+  // ---- 12. 通道 onopen 后必须立刻发 request（推不过来时手环的自愈入口）----
+  {
+    const conn = await loadProject(p.src)
+    globalThis.__sent = []
+    conn.sync.init()
+    globalThis.__conn.onopen({ isReconnected: false })
+    const sent = globalThis.__sent || []
+    check('onopen 后立刻向手机发 action=request',
+      sent.some((d) => d && d.action === 'request' && d.protocol === 'nexio.schedule'),
+      JSON.stringify(sent))
+    // 手机端只校验 protocol/action，request 里不能夹带别的 action
+    check('request 只带 protocol/version/action/reason/sentAt',
+      sent.every((d) => !d || d.action === 'request'),
+      JSON.stringify(sent.map((d) => d && d.action)))
+  }
+
+  // ---- 13. 导出（AstroBox 插件「从手环获取课表」action=export）----
+  {
+    // 有课表：回包必须是手机协议形态的 v4 整表，sentAt 原样回传
+    const ex = await loadProject(p.src)
+    ex.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    const pEx = payloadFull()
+    ex.sync.handlePhoneMessage(pEx)
+    globalThis.__sent = []
+    const rEx = ex.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'export' })
+    const out = (globalThis.__sent || [])[0]
+    check('action=export → 回一包（不是当坏包拒绝）', rEx.ok === true, JSON.stringify(rEx))
+    check('导出回包带 ok:true + action:export + payload',
+      !!out && out.ok === true && out.action === 'export' && !!out.payload,
+      JSON.stringify(out && { ok: out.ok, action: out.action, hasPayload: !!out.payload }))
+    check('导出的整表课程数/学期起始日与推入的一致',
+      !!out && out.payload.courses.length === pEx.courses.length &&
+        out.payload.settings.class_start_time === pEx.settings.class_start_time,
+      out ? `课${out.payload.courses.length} 开学${out.payload.settings.class_start_time}` : '无回包')
+    check('导出的 sentAt 原样回传（不许重算，否则周次会错位）',
+      !!out && out.payload.sentAt === pEx.sentAt, out && `sentAt=${out.payload.sentAt} 期望=${pEx.sentAt}`)
+    check('导出的假期换回手机字段名 date/endDate（不是内部的 start/end）',
+      !!out && out.payload.holidays.length === pEx.holidays.length &&
+        Object.prototype.hasOwnProperty.call(out.payload.holidays[0], 'date') &&
+        !Object.prototype.hasOwnProperty.call(out.payload.holidays[0], 'start'),
+      out ? JSON.stringify(out.payload.holidays[0]) : '无回包')
+    // 导出请求本身不能污染已应用的课表
+    check('导出后课表不受影响（仍是同一周、同一批课）',
+      courseNames(view(ex.schedule, ex.util, '2026-10-12')).join(',') === '高等数学',
+      `10/12=[${courseNames(view(ex.schedule, ex.util, '2026-10-12')).join(',')}]`)
+
+    // ---- 回传浮层（「正在回传课表」+ 进度条）----
+    // 页面靠 onExportState 拿 { active, percent }，订阅时会先回放当前状态。
+    // 上一段用例刚导过一次，先等浮层自动收起再断言默认态。
+    await new Promise((r) => setTimeout(r, 500))
+    const states = []
+    const off = ex.sync.onExportState((st) => states.push({ a: !!st.active, p: st.percent }))
+    check('回传浮层默认收起（订阅即回放 active=false）',
+      states.length === 1 && states[0].a === false && states[0].p === 0, JSON.stringify(states))
+    check('未回传时 getStatus().exporting=false',
+      ex.sync.getStatus().exporting === false, 'exporting=' + ex.sync.getStatus().exporting)
+
+    ex.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'export' })
+    check('收到导出请求后浮层立刻亮起（exporting=true）',
+      ex.sync.getStatus().exporting === true, 'exporting=' + ex.sync.getStatus().exporting)
+    check('回传进度条有中间态（不是 0 或 100 的跳变）',
+      states.some((s) => s.a && s.p > 0 && s.p < 100),
+      JSON.stringify(states.map((s) => s.p)))
+    check('回传成功后进度补满 100',
+      states.some((s) => s.a && s.p === 100), JSON.stringify(states.map((s) => s.p)))
+
+    await new Promise((r) => setTimeout(r, 500))
+    check('回传完成后浮层自动收起、进度归零',
+      ex.sync.getStatus().exporting === false && ex.sync.getStatus().exportPercent === 0,
+      `exporting=${ex.sync.getStatus().exporting} percent=${ex.sync.getStatus().exportPercent}`)
+    check('收起状态也推给了页面（最后一条 active=false）',
+      states.length > 0 && states[states.length - 1].a === false,
+      JSON.stringify(states[states.length - 1]))
+    off()
+
+    // 实机 2.0.7 现象：connect.send 的 success 回调不回来，浮层停在 88%。
+    // 兜底必须自己收尾，不能把用户锁在黑屏上。
+    {
+      const conn = globalThis.__conn
+      const realSend = conn.send
+      conn.send = function () {} // 只投递、不回调
+      const st2 = []
+      const off2 = ex.sync.onExportState((st) => st2.push({ a: !!st.active, p: st.percent }))
+      ex.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'export' })
+      await new Promise((r) => setTimeout(r, 120))
+      check('发送回调不回时进度按时间推进、不提前假满',
+        st2.some((s) => s.a && s.p > 0 && s.p < 100) && !st2.some((s) => s.a && s.p === 100),
+        JSON.stringify(st2.map((s) => s.p)))
+      await new Promise((r) => setTimeout(r, 560))
+      check('回调缺失时兜底补满 100', st2.some((s) => s.a && s.p === 100), JSON.stringify(st2.map((s) => s.p)))
+      await new Promise((r) => setTimeout(r, 480))
+      check('兜底后浮层自动收起（不卡在最后一点）',
+        ex.sync.getStatus().exporting === false && ex.sync.getStatus().exportPercent === 0,
+        `exporting=${ex.sync.getStatus().exporting} percent=${ex.sync.getStatus().exportPercent}`)
+      off2()
+      conn.send = realSend
+    }
+
+    // 对端消息被 QAIC 桥接层包成 {data:{...}} / {data:"{...}"} 时也要认得出
+    globalThis.__sent = []
+    const rWrap = ex.sync.handlePhoneMessage({ data: { protocol: 'nexio.schedule', version: 4, action: 'export' } })
+    const outWrap = (globalThis.__sent || []).filter((d) => d && d.action === 'export')[0]
+    check('{data:{…}} 包裹的导出请求也能识别（不依赖桥接层形态）',
+      rWrap.ok === true && !!outWrap && outWrap.ok === true, JSON.stringify(rWrap))
+
+    globalThis.__sent = []
+    const rWrapStr = ex.sync.handlePhoneMessage({ data: JSON.stringify({ protocol: 'nexio.schedule', version: 4, action: 'export' }) })
+    const outWrapStr = (globalThis.__sent || []).filter((d) => d && d.action === 'export')[0]
+    check('{data:"{…}"} 二次编码的导出请求也能识别',
+      rWrapStr.ok === true && !!outWrapStr && outWrapStr.ok === true, JSON.stringify(rWrapStr))
+  }
+
+  // 没课表 / 清空后：回 ok:false + no_schedule，让插件立刻提示而不是等超时
+  {
+    // 空手环：storage 也要清干净，否则 init 会把上一段用例的缓存恢复出来
+    globalThis.__store = {}
+    const empty = await loadProject(p.src)
+    empty.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    globalThis.__sent = []
+    const r0 = empty.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'export' })
+    const out0 = (globalThis.__sent || [])[0]
+    check('手环没有课表时导出回 ok:false / no_schedule',
+      r0.ok === false && !!out0 && out0.ok === false && out0.error === 'no_schedule',
+      JSON.stringify(out0))
+
+    empty.sync.handlePhoneMessage(payloadFull())
+    empty.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'clear' })
+    globalThis.__sent = []
+    empty.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'export' })
+    const outC = (globalThis.__sent || [])[0]
+    check('action=clear 之后导出同样回 no_schedule（清空就没有可导出的课表）',
+      !!outC && outC.ok === false && outC.error === 'no_schedule', JSON.stringify(outC))
+  }
+
+  // 冷启动只有缓存（手机不在身边）：导出仍要能给出课表
+  {
+    globalThis.__store = {}
+    const hot = await loadProject(p.src)
+    hot.sync.handlePhoneMessage(payloadFull())
+    const cold = await loadProject(p.src)
+    cold.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    globalThis.__sent = []
+    const rCold = cold.sync.handlePhoneMessage({ protocol: 'nexio.schedule', version: 4, action: 'export' })
+    const outCold = (globalThis.__sent || []).filter((d) => d && d.action === 'export')[0]
+    check('冷启动仅有本地缓存时也能导出（手机不在身边）',
+      rCold.ok === true && !!outCold && outCold.ok === true && outCold.payload.courses.length > 0,
+      outCold ? `课${outCold.payload.courses.length}` : '无回包')
+  }
+
+  // ---- 14. 传输失败页（设计稿「画板 1 副本 5」：红圈白叉 + 传输出错 + 日志）----
+  // 只覆盖「手机推来的包用不了」这条主路径；「request 后重试用尽」走同一个
+  // reportXferError，退避要等 4+8+16 秒，放进回归脚本太慢，靠人工验证。
+  {
+    globalThis.__store = {}
+    const err = await loadProject(p.src)
+    err.sync.init()
+    await new Promise((r) => setTimeout(r, 30))
+    const states = []
+    const off = err.sync.onXferError((st) => states.push({ a: !!st.active, t: st.title, lines: (st.lines || []).slice() }))
+    check('传输失败页默认不显示（订阅即回放 active=false）',
+      states.length === 1 && states[0].a === false, JSON.stringify(states[0]))
+
+    // 1) 坏 JSON：手机推过来的东西根本不是 JSON
+    const rBad = err.sync.handlePhoneMessage('{"protocol": "nexio.schedule", ')
+    const lBad = states[states.length - 1]
+    check('收到坏 JSON → 盖出「传输出错」页',
+      rBad.ok === false && lBad.a === true && lBad.t === '传输出错', JSON.stringify(lBad))
+    check('日志首行 = 时间 + 哪一步失败',
+      /^\d\d:\d\d 推送数据异常$/.test(lBad.lines[0] || ''), JSON.stringify(lBad.lines))
+    check('日志写明原因与该怎么办',
+      lBad.lines.join('|').indexOf('收到的不是合法 JSON') >= 0 &&
+        lBad.lines.join('|').indexOf('重开 Nexio') >= 0, JSON.stringify(lBad.lines))
+    check('日志不超过 5 行（设计稿日志区只有 123px）',
+      lBad.lines.length <= 5, '行数=' + lBad.lines.length)
+    check('getStatus().xferError 同步为 true（便于状态卡/排查读）',
+      err.sync.getStatus().xferError === true, 'xferError=' + err.sync.getStatus().xferError)
+
+    // 2) 旧协议：有包但缺 courses 数组 —— 该告诉用户「手机端太旧」
+    const rOld = err.sync.handlePhoneMessage(payloadV3Dates())
+    const lOld = states[states.length - 1]
+    check('旧协议（v3 无 courses 数组）→ 日志指出缺字段并带手机端版本',
+      rOld.ok === false && lOld.a === true &&
+        lOld.lines.join('|').indexOf('缺少 courses 数组') >= 0 &&
+        lOld.lines.join('|').indexOf('手机端协议 v3') >= 0, JSON.stringify(lOld.lines))
+    check('旧协议 → 建议升级手机端 Nexio',
+      lOld.lines.join('|').indexOf('升级 Nexio') >= 0, JSON.stringify(lOld.lines))
+
+    // 3) 传输成功：错误页自己收掉，不用用户点
+    err.sync.handlePhoneMessage(payloadFull())
+    check('收到可用整表 → 错误页自动收起',
+      states[states.length - 1].a === false && err.sync.getStatus().xferError === false,
+      JSON.stringify(states[states.length - 1]))
+
+    // 4) 点掉之后同类错误不再弹（5 分钟一次的轮询会把同一包坏数据反复推过来）
+    err.sync.handlePhoneMessage(payloadV3Dates())
+    check('再收到坏包 → 又弹出来', states[states.length - 1].a === true)
+    err.sync.dismissXferError()
+    check('点一下收起（dismissXferError）',
+      states[states.length - 1].a === false && err.sync.getStatus().xferError === false,
+      JSON.stringify(states[states.length - 1]))
+    err.sync.handlePhoneMessage(payloadV3Dates())
+    check('同类错误收起后不再自动弹（不把人锁在错误页上）',
+      states[states.length - 1].a === false, JSON.stringify(states[states.length - 1]))
+    err.sync.handlePhoneMessage('not json at all')
+    check('换一类错误仍然会弹（静音只针对同一类）',
+      states[states.length - 1].a === true, JSON.stringify(states[states.length - 1]))
+    err.sync.handlePhoneMessage(payloadFull())
+    err.sync.handlePhoneMessage(payloadV3Dates())
+    check('传输成功一次后解除静音（下次坏包照样提醒）',
+      states[states.length - 1].a === true, JSON.stringify(states[states.length - 1]))
+    off()
+  }
+
+  // 连不上手机不是「传输失败」：不弹错误页，交给关于页的连接状态卡
+  {
+    globalThis.__store = {}
+    globalThis.__diagCode = 204
+    const quiet = await loadProject(p.src)
+    const seen = []
+    quiet.sync.onXferError((st) => seen.push(!!st.active))
+    quiet.sync.init()
+    await new Promise((r) => setTimeout(r, 100))
+    check('没连上手机（诊断 204）不弹传输失败页',
+      seen.length > 0 && seen.every((a) => a === false), JSON.stringify(seen))
+    globalThis.__diagCode = 0
   }
 }
 
