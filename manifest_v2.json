@@ -33,10 +33,14 @@
   ],
   "downloads": {
     "xmb10p": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -64,10 +68,14 @@
       ]
     },
     "xmb10": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmb10.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -95,10 +103,14 @@
       ]
     },
     "xmb11": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmb10.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -126,10 +138,14 @@
       ]
     },
     "xmb10nfc": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmb10.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -157,10 +173,14 @@
       ]
     },
     "xmb11nfc": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmb10.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -188,10 +208,14 @@
       ]
     },
     "xmrw5": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -215,10 +239,14 @@
       ]
     },
     "xmrw6": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -242,10 +270,14 @@
       ]
     },
     "xmrw5xring": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -269,10 +301,14 @@
       ]
     },
     "xmb9": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release-xmb10.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmb10.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -296,10 +332,14 @@
       ]
     },
     "xmb9p": {
-      "version": "2.0.5-release",
-      "file_name": "downloads/com.haooz.chedule.release.2.0.5-release.rpk",
-      "versionCode": 205,
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release.rpk",
+      "versionCode": 206,
       "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        },
         {
           "version": "2.0.5-release",
           "content": "修复课表无法导入的BUG"
@@ -321,7 +361,71 @@
           "content": "1.优化首次连接手机时偶现无法传输课表的BUG\n2.增大侧滑返回区域"
         }
       ]
+    },
+    "xmws4xring": {
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmws4xring.rpk",
+      "versionCode": 206,
+      "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        }
+      ]
+    },
+    "xmws441": {
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmws4xring.rpk",
+      "versionCode": 206,
+      "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        }
+      ]
+    },
+    "xmws4": {
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmws4xring.rpk",
+      "versionCode": 206,
+      "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        }
+      ]
+    },
+    "xmws541": {
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmws4xring.rpk",
+      "versionCode": 206,
+      "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        }
+      ]
+    },
+    "xmws5": {
+      "version": "2.0.6-release",
+      "file_name": "downloads/com.haooz.chedule.release.2.0.6-release-xmws4xring.rpk",
+      "versionCode": 206,
+      "updatelogs": [
+        {
+          "version": "2.0.6-release",
+          "content": "1.新增提取手环/手表端的json课表（通过AstroBox插件提取）\n2.新增apk端传输课表时错误日志弹出\n3.新增对小米vela圆表的支持"
+        }
+      ]
     }
   },
-  "ext": {}
+  "ext": {
+    "bundledResources": {
+      "recommended": [
+        {
+          "type": "plugin",
+          "id": "Nexio课程表推送器"
+        }
+      ]
+    }
+  }
 }
